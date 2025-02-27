@@ -1,14 +1,40 @@
 /* style.css */
 body {
     font-family: 'Arial', sans-serif;
-    background-color: #f0f4f8;
+    font-size: 16px;
 }
 
-h1 {
-    color: #4CAF50;
+h1,
+h2,
+h3 {
+    color: #2e7d32;
+    font-family: 'Arial', sans-serif;
 }
 
 .stTextInput input {
+    font-size: 18px;
+    min-width: 400px;
+    min-height: 100px;
+    resize: none;
+    white-space: pre-wrap;
+}
+
+.stTextArea textarea {
+    font-size: 18px;
+    min-width: 400px;
+    min-height: 100px;
+    resize: none;
+    white-space: pre-wrap;
+}
+
+.stButton button {
+    background-color: #4CAF50;
+    color: white;
     font-size: 16px;
-    padding: 8px;
+    padding: 10px 20px;
+    border-radius: 5px;
+}
+
+.stTextInput {
+    margin-bottom: 20px;
 }

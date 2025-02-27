@@ -35,11 +35,12 @@ def start_interview():
     st.write(f"访谈员: {overall_bg_question}")
 
     # 4. 用户输入背景问题的答案
-    user_response = st.text_input("受访者: ", key="first_question", on_change=handle_input)
-    if user_response:
+    user_response = st.text_area("受访者: ", key="first_question", height=100, on_change=handle_input, help="按Enter键换行，点击发送按钮提交")
+    
+    # 用户点击发送按钮时提交
+    if st.button("发送"):
+        st.session_state.first_question = user_response
         st.session_state.dialog_history.append({"role": "interviewee", "content": user_response})
-
-        # 根据用户的回答生成下一个问题或过渡句
         handle_next_question()
 
 def handle_input():
@@ -52,7 +53,6 @@ def handle_next_question():
     # 当前的访谈状态和回答
     dialog_history = st.session_state.dialog_history
     current_question_idx = st.session_state.current_question_idx
-    current_subquestion_count = st.session_state.current_subquestion_count
     key_questions = initialize_interview()[1]  # 获取访谈大纲的关键问题
 
     # 生成问题后，设置为等待输入
@@ -74,7 +74,6 @@ def handle_next_question():
                     st.session_state.dialog_history.append({"role": "interviewer", "content": transition_sentence})
                     st.write(f"访谈员（过渡）：{transition_sentence}")
                     st.session_state.current_question_idx += 1
-                    st.session_state.current_subquestion_count = 1
                 else:
                     # 结束访谈
                     final_summary_json = generate_final_summary(dialog_history, initialize_interview()[0], analyze_interview_outline(initialize_interview()[0], key_questions))
@@ -87,8 +86,6 @@ def handle_next_question():
                 st.session_state.dialog_history.append({"role": "interviewer", "content": deeper_question})
                 st.write(f"访谈员: {deeper_question}")
                 st.session_state.current_subquestion_count += 1
-                st.session_state.first_question = ""  # 清空输入框
-                st.text_input("受访者: ", key="first_question", on_change=handle_input)
 
     else:
         # 没有问题了，结束访谈
@@ -113,32 +110,12 @@ def initialize_interview():
     return interview_outline, key_questions
 
 def main():
-    # 自定义 CSS 样式
-    st.markdown("""
-    <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            font-size: 16px;
-        }
-        h1, h2, h3 {
-            color: #2e7d32;
-            font-family: 'Arial', sans-serif;
-        }
-        .stTextInput input {
-            font-size: 18px;
-        }
-        .stTextArea textarea {
-            font-size: 18px;
-        }
-        .stButton button {
-            background-color: #4CAF50;
-            color: white;
-            font-size: 16px;
-            padding: 10px 20px;
-            border-radius: 5px;
-        }
-    </style>
-    """, unsafe_allow_html=True)
+    # 引入外部 CSS
+    st.markdown(
+        """
+        <link rel="stylesheet" href="assets/style.css">
+        """, unsafe_allow_html=True
+    )
 
     st.title('自动访谈机器人')
     st.sidebar.title('访谈操作')
@@ -162,3 +139,4 @@ def main():
 if __name__ == "__main__":
     initialize_session_state()
     main()
+    
