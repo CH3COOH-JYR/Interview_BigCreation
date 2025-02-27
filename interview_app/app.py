@@ -21,12 +21,13 @@ def initialize_session_state():
 def start_interview():
     # 初始化访谈状态
     initialize_session_state()
+
     # 1. 初始化访谈大纲和关键问题
     interview_outline, key_questions = initialize_interview()
     rating_metrics = analyze_interview_outline(interview_outline, key_questions)
 
     # 2. 显示访谈主题
-    st.write(f"### 访谈主题：{interview_outline}")
+    st.markdown(f"### <span style='color:#4CAF50;'>访谈主题：</span><span style='font-size: 20px;'>{interview_outline}</span>", unsafe_allow_html=True)
     
     # 3. 生成并显示背景问题
     overall_bg_question = generate_overall_background_question(interview_outline)
@@ -112,6 +113,33 @@ def initialize_interview():
     return interview_outline, key_questions
 
 def main():
+    # 自定义 CSS 样式
+    st.markdown("""
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            font-size: 16px;
+        }
+        h1, h2, h3 {
+            color: #2e7d32;
+            font-family: 'Arial', sans-serif;
+        }
+        .stTextInput input {
+            font-size: 18px;
+        }
+        .stTextArea textarea {
+            font-size: 18px;
+        }
+        .stButton button {
+            background-color: #4CAF50;
+            color: white;
+            font-size: 16px;
+            padding: 10px 20px;
+            border-radius: 5px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.title('自动访谈机器人')
     st.sidebar.title('访谈操作')
 
@@ -122,14 +150,14 @@ def main():
     st.sidebar.button('下一个问题', on_click=jump_to_next_question)
     st.sidebar.button('结束访谈', on_click=end_interview)
 
-    # 显示历史记录
-    if st.session_state.dialog_history:
-        st.write("### 访谈历史：")
-        for entry in st.session_state.dialog_history:
-            if entry["role"] == "interviewer":
-                st.write(f"访谈员: {entry['content']}")
-            else:
-                st.write(f"受访者: {entry['content']}")
+    # 历史记录折叠面板
+    with st.expander("点击展开查看访谈历史记录"):
+        if st.session_state.dialog_history:
+            for entry in st.session_state.dialog_history:
+                if entry["role"] == "interviewer":
+                    st.write(f"**访谈员:** {entry['content']}")
+                else:
+                    st.write(f"**受访者:** {entry['content']}")
 
 if __name__ == "__main__":
     initialize_session_state()
