@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>访谈前准备</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        label {
+            font-weight: bold;
+        }
+        textarea, input[type="text"], input[type="submit"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .question-group {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>访谈前准备</h1>
+    <form method="POST">
+        <div>
+            <label for="interview_outline">访谈大纲：</label>
+            <textarea id="interview_outline" name="interview_outline" rows="4" required></textarea>
+        </div>
+        
+        <div class="question-group">
+            <label for="key_questions">请输入关键问题（每个问题一行）：</label>
+            <input type="text" name="key_questions" placeholder="输入第一个问题" required>
+            <div id="questions-container"></div>
+            <button type="button" onclick="addQuestion()">添加更多问题</button>
+        </div>
+        
+        <input type="submit" value="提交">
+    </form>
+
+    <script>
+        function addQuestion() {
+            const container = document.getElementById('questions-container');
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.name = 'key_questions';
+            input.placeholder = '输入下一个问题';
+            container.appendChild(input);
+        }
+    </script>
+</body>
+</html>
