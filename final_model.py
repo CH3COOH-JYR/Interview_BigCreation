@@ -1,21 +1,116 @@
 import re
 import json
-from transformers import AutoTokenizer
-from vllm import LLM, SamplingParams
+import requests
+class CompletionOutput:
+    def __init__(self, text):
+        self.text = text
 
+class CompletionResult:
+    def __init__(self, outputs):
+        self.outputs = outputs  # outputs应该是CompletionOutput实例的列表
 ###########################
-# 模型与采样参数初始化
+# API调用适配层（核心修改）
 ###########################
-tokenizer = AutoTokenizer.from_pretrained("/home/renxuanyu/home/renxuanyu/Qwen")
+API_URL = "http://10.77.110.129:8000/v1/chat/completions"
+HEADERS = {"Content-Type": "application/json"}
+MODEL_NAME = "/home/zhangyuheng/.cache/modelscope/hub/Qwen/Qwen2.5-7B-Instruct"
 
-sampling_params = SamplingParams(
-    temperature=0.6,
-    top_p=0.9,
-    repetition_penalty=1.02,
-    max_tokens=512
-)
+class APIAdapter:
+    @staticmethod
+    def generate(text_list, sampling_params):
+        """替换原有的vLLM generate方法"""
+        responses = []
+        for text in text_list:
+            # 解析原apply_chat_template生成的文本格式
+            # 示例：假设原格式为"[INST] {system} [/INST] {user} [/INST]"
+            # 这里需要根据实际模板格式解析出messages
+            parsed_messages = APIAdapter._parse_template_text(text)
+            
+            data = {
+                "model": MODEL_NAME,
+                "messages": parsed_messages,
+                "temperature": sampling_params.temperature,
+                "top_p": sampling_params.top_p,
+                "repetition_penalty": sampling_params.repetition_penalty,
+                "max_tokens": sampling_params.max_tokens
+            }
+            
+            try:
+                response = requests.post(API_URL, headers=HEADERS, json=data, timeout=30)
+                if response.status_code == 200:
+                    content = response.json()["choices"][0]["message"]["content"]
+                    # 关键修改：将输出包装为列表
+                    responses.append([CompletionOutput(content)])  # <- 注意这里变成二维列表
+                else:
+                    responses.append([CompletionOutput(f"API Error: {response.status_code}")])
+            except Exception as e:
+                responses.append([CompletionOutput(f"Connection Error: {str(e)}")])
+        
+        # 结构调整：每个返回项对应一个CompletionResult
+        return [CompletionResult(outputs) for outputs in responses]
 
-llm = LLM(model="/home/renxuanyu/home/renxuanyu/Qwen")
+    @staticmethod
+    def _parse_template_text(text):
+        """逆向解析apply_chat_template生成的文本（关键修改点）"""
+        # 这里需要根据原tokenizer实际生成的模板格式进行解析
+        # 示例解析逻辑（需根据实际情况调整）：
+        messages = []
+        
+        # 匹配系统消息
+        system_match = re.search(r'<\|system\|>(.*?)<\|end\|>', text, re.DOTALL)
+        if system_match:
+            messages.append({
+                "role": "system",
+                "content": system_match.group(1).strip()
+            })
+        
+        # 匹配用户消息
+        user_match = re.search(r'<\|user\|>(.*?)<\|end\|>', text, re.DOTALL)
+        if user_match:
+            messages.append({
+                "role": "user",
+                "content": user_match.group(1).strip()
+            })
+        
+        # 匹配assistant消息（如果有）
+        assistant_match = re.search(r'<\|assistant\|>(.*?)<\|end\|>', text, re.DOTALL)
+        if assistant_match:
+            messages.append({
+                "role": "assistant",
+                "content": assistant_match.group(1).strip()
+            })
+        
+        return messages
+class DummyTokenizer:
+    @staticmethod
+    def apply_chat_template(messages, tokenize=False, add_generation_prompt=True):
+        """模拟原tokenizer的模板生成逻辑"""
+        # 这里需要与原模型模板格式保持一致
+        template = ""
+        for msg in messages:
+            role = msg["role"]
+            content = msg["content"]
+            template += f"<|{role}|>{content}<|end|>\n"
+        if add_generation_prompt:
+            template += "<|assistant|>"
+        return template
+
+tokenizer = DummyTokenizer()  # 替换原有tokenizer初始化
+
+# 保持原有SamplingParams和LLM初始化（原代码14-18行）
+class SamplingParams:
+    def __init__(self, 
+                 temperature=0.6,
+                 top_p=0.9,
+                 repetition_penalty=1.02,
+                 max_tokens=512):
+        self.temperature = temperature
+        self.top_p = top_p
+        self.repetition_penalty = repetition_penalty
+        self.max_tokens = max_tokens
+
+sampling_params = SamplingParams()
+llm = APIAdapter()
 
 ###########################
 # ---- 工具函数（访谈逻辑）----
