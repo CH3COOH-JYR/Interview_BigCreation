@@ -2,12 +2,15 @@ import streamlit as st
 import json
 from interview_logic import *
 from utils import *
+import time
 
 def start_interview():
-    # 1. 初始化访谈大纲和关键问题
-    interview_outline, key_questions = initialize_interview()
-    rating_metrics = analyze_interview_outline(interview_outline, key_questions)
-
+    # 1. 显示加载提示
+    with st.spinner("正在加载访谈模型..."):
+        time.sleep(2)  # 模拟加载延迟
+        interview_outline, key_questions = initialize_interview()
+        rating_metrics = analyze_interview_outline(interview_outline, key_questions)
+    
     # 初始化 session_state 用来跟踪访谈进度
     if "dialog_history" not in st.session_state:
         st.session_state.dialog_history = []
@@ -15,6 +18,8 @@ def start_interview():
         st.session_state.current_question_idx = 0
     if "current_subquestion_count" not in st.session_state:
         st.session_state.current_subquestion_count = 1
+    if "first_question" not in st.session_state:
+        st.session_state.first_question = ""  # 保存第一个问题的答案
 
     # 2. 显示访谈主题
     st.write(f"### 访谈主题：{interview_outline}")
@@ -25,11 +30,12 @@ def start_interview():
     st.write(f"访谈员: {overall_bg_question}")
 
     # 4. 用户输入背景问题的答案
-    user_response = st.text_input("受访者: ", key="first_question", on_change=handle_input)
+    if st.session_state.first_question == "":
+        user_response = st.text_input("受访者: ", key="first_question", on_change=handle_input)
+    else:
+        user_response = st.session_state.first_question
     if user_response:
         st.session_state.dialog_history.append({"role": "interviewee", "content": user_response})
-
-        # 根据用户的回答生成下一个问题或过渡句
         handle_next_question()
 
 def handle_input():
@@ -79,6 +85,33 @@ def handle_next_question():
         # 没有问题了，结束访谈
         st.write("访谈结束，谢谢参与！")
 
+def handle_next_button_click():
+    # 用户点击“下一个问题”按钮时，跳到下一个问题
+    current_question_idx = st.session_state.current_question_idx
+    key_questions = initialize_interview()[1]  # 获取访谈大纲的关键问题
+
+    # 防止在没有开始第一个问题时点击“下一个问题”
+    if current_question_idx == 0 and st.session_state.first_question == "":
+        st.warning("请先回答第一个问题")
+        # 保持输入框以供输入
+        st.text_input("受访者: ", key="first_question", on_change=handle_input)
+        return
+
+    if current_question_idx < len(key_questions):
+        next_q = key_questions[current_question_idx]
+        
+        # 使用 spinner 显示“模型访谈者生成中”
+        with st.spinner("模型访谈者生成中..."):
+            time.sleep(2)  # 模拟生成问题的时间
+            transition_sentence = generate_transition(next_q, key_questions[current_question_idx + 1] if current_question_idx + 1 < len(key_questions) else "")
+        
+        st.session_state.dialog_history.append({"role": "interviewer", "content": transition_sentence})
+        st.write(f"访谈员（过渡）：{transition_sentence}")
+        st.session_state.current_question_idx += 1
+        st.session_state.current_subquestion_count = 1
+        st.session_state.first_question = ""  # 清空输入框
+        st.text_input("受访者: ", key="first_question", on_change=handle_input)
+
 def initialize_interview():
     with open("interview_outline.json", "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -90,8 +123,20 @@ def main():
     st.title('自动访谈机器人')
     st.sidebar.title('访谈操作')
 
-    if st.sidebar.button('开始新访谈'):
+    # 1. 添加“开始访谈”按钮
+    if st.sidebar.button('开始访谈'):
         start_interview()
+
+    # 2. 添加“下一个问题”按钮
+    if st.sidebar.button('下一个问题'):
+        handle_next_button_click()
+
+    # 3. 添加“结束访谈”按钮
+    if st.sidebar.button('结束访谈'):
+        dialog_history = st.session_state.dialog_history
+        final_summary_json = generate_final_summary(dialog_history, initialize_interview()[0], analyze_interview_outline(initialize_interview()[0], initialize_interview()[1]))
+        st.write("访谈结束，谢谢参与！")
+        st.json(final_summary_json)
 
 if __name__ == "__main__":
     main()
