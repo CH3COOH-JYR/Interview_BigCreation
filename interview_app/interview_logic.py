@@ -1,5 +1,5 @@
 # interview_logic.py
-
+import requests
 import json
 import re
 from transformers import AutoTokenizer
