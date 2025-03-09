@@ -4,6 +4,15 @@ from interview_logic import *
 from utils import *
 import time
 
+def load_css():
+    # Ensure the path is correct relative to the location of app.py
+    css_path = "assets/styles.css"
+    try:
+        with open(css_path) as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    except FileNotFoundError:
+        st.error(f"CSS file not found at {css_path}. Please check the file path.")
+
 def start_interview():
     # 1. 显示加载提示
     with st.spinner("正在加载访谈模型..."):
@@ -86,11 +95,11 @@ def handle_next_question():
         st.write("访谈结束，谢谢参与！")
 
 def handle_next_button_click():
-    # 用户点击“下一个问题”按钮时，跳到下一个问题
+    # 用户点击"下一个问题"按钮时，跳到下一个问题
     current_question_idx = st.session_state.current_question_idx
     key_questions = initialize_interview()[1]  # 获取访谈大纲的关键问题
 
-    # 防止在没有开始第一个问题时点击“下一个问题”
+    # 防止在没有开始第一个问题时点击"下一个问题"
     if current_question_idx == 0 and st.session_state.first_question == "":
         st.warning("请先回答第一个问题")
         # 保持输入框以供输入
@@ -100,7 +109,7 @@ def handle_next_button_click():
     if current_question_idx < len(key_questions):
         next_q = key_questions[current_question_idx]
         
-        # 使用 spinner 显示“模型访谈者生成中”
+        # 使用 spinner 显示"模型访谈者生成中"
         with st.spinner("模型访谈者生成中..."):
             time.sleep(2)  # 模拟生成问题的时间
             transition_sentence = generate_transition(next_q, key_questions[current_question_idx + 1] if current_question_idx + 1 < len(key_questions) else "")
@@ -120,18 +129,23 @@ def initialize_interview():
     return interview_outline, key_questions
 
 def main():
-    st.title('自动访谈机器人')
+    load_css()  # Load the CSS styles
+    st.markdown("<h1 class='title'>访谈对话BOT</h1>", unsafe_allow_html=True)
     st.sidebar.title('访谈操作')
 
-    # 1. 添加“开始访谈”按钮
+    # Initialize dialog_history in session state
+    if "dialog_history" not in st.session_state:
+        st.session_state.dialog_history = []
+
+    # 1. 添加"开始访谈"按钮
     if st.sidebar.button('开始访谈'):
         start_interview()
 
-    # 2. 添加“下一个问题”按钮
+    # 2. 添加"下一个问题"按钮
     if st.sidebar.button('下一个问题'):
         handle_next_button_click()
 
-    # 3. 添加“结束访谈”按钮
+    # 3. 添加"结束访谈"按钮
     if st.sidebar.button('结束访谈'):
         dialog_history = st.session_state.dialog_history
         final_summary_json = generate_final_summary(dialog_history, initialize_interview()[0], analyze_interview_outline(initialize_interview()[0], initialize_interview()[1]))

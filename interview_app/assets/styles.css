@@ -2,6 +2,8 @@
 body {
     font-family: 'Arial', sans-serif;
     font-size: 16px;
+    background-color: #f4f4f9; /* Light background color */
+    color: #000000; /* Set font color to black */
 }
 
 h1,
@@ -9,6 +11,14 @@ h2,
 h3 {
     color: #2e7d32;
     font-family: 'Arial', sans-serif;
+}
+
+.title {
+    font-family: 'KaiTi', serif; /* Use KaiTi for the title */
+    font-size: 24px; /* Slightly smaller font size */
+    text-align: center;
+    color: #000000; /* Green color for the title */
+    margin-bottom: 20px;
 }
 
 .stTextInput input {
@@ -28,11 +38,17 @@ h3 {
 }
 
 .stButton button {
-    background-color: #4CAF50;
-    color: white;
+    background-color: #007BFF; /* Blue background color */
+    color: #FFFFFF; /* White text color */
     font-size: 16px;
     padding: 10px 20px;
     border-radius: 5px;
+    border: none;
+    cursor: pointer;
+}
+
+.stButton button:hover {
+    background-color: #0056b3; /* Darker blue on hover */
 }
 
 .stTextInput {
