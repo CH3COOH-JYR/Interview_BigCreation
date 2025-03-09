@@ -138,5 +138,12 @@ def main():
         st.write("访谈结束，谢谢参与！")
         st.json(final_summary_json)
 
+    # 添加可折叠的侧边栏来显示聊天记录
+    with st.sidebar.expander("查看聊天记录", expanded=False):
+        st.write("### 聊天记录")
+        for entry in st.session_state.dialog_history:
+            role = "访谈员" if entry["role"] == "interviewer" else "受访者"
+            st.write(f"{role}: {entry['content']}")
+
 if __name__ == "__main__":
     main()
