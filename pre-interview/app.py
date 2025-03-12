@@ -1,46 +1,86 @@
-from flask import Flask, render_template, request, redirect, url_for
+import streamlit as st
 import json
-app = Flask(__name__)
+from datetime import datetime
 
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    if request.method == 'POST':
-        # 获取表单数据
-        interview_outline = request.form['interview_outline']
-        key_questions = request.form.getlist('key_questions')
-
-        # 创建访谈大纲记录字典
-        interview_record = {
-            'interview_outline': interview_outline,
-            'key_questions': key_questions
-        }
-
-        # 将访谈大纲记录保存为 JSON 格式，追加到文件末尾
+def save_to_json(interview_outline, key_questions):
+    """Save the interview data to a JSON file"""
+    interview_record = {
+        'interview_outline': interview_outline,
+        'key_questions': key_questions,
+        'timestamp': datetime.now().isoformat()
+    }
+    
+    try:
+        # Try to read existing data
         try:
-            with open('interview_outline.json', 'a', encoding='utf-8') as file:
-                # 在 JSON 数据之间添加一个分隔符，以便每次追加
-                if file.tell() > 0:
-                    file.write(',\n')
-                json.dump(interview_record, file, ensure_ascii=False, indent=4)
-        except FileNotFoundError:
-            # 如果文件不存在，创建一个新的文件并添加 JSON 数据
-            with open('interview_outline.json', 'w', encoding='utf-8') as file:
-                json.dump([interview_record], file, ensure_ascii=False, indent=4)
+            with open('interview_outline.json', 'r', encoding='utf-8') as file:
+                data = json.load(file)
+                if not isinstance(data, list):
+                    data = [data]
+        except (FileNotFoundError, json.JSONDecodeError):
+            data = []
+        
+        # Append new record
+        data.append(interview_record)
+        
+        # Write back to file
+        with open('interview_outline.json', 'w', encoding='utf-8') as file:
+            json.dump(data, file, ensure_ascii=False, indent=4)
+            
+    except Exception as e:
+        st.error(f"保存数据时出错: {str(e)}")
+        return False
+    
+    return True
 
-        # 打印到控制台，可以进一步处理
-        print("访谈大纲:", interview_outline)
-        print("关键问题:", key_questions)
-
-        # 提交后重定向到感谢页面
-        return redirect(url_for('thank_you'))
-
-    return render_template('index.html')
-
-
-@app.route('/thank_you')
-def thank_you():
-    return render_template('thank_you.html')
-
+def main():
+    st.title("访谈前准备")
+    
+    # 访谈大纲输入
+    interview_outline = st.text_area(
+        "访谈大纲：",
+        height=150,
+        key="interview_outline"
+    )
+    
+    # 初始化 session state 用于存储问题列表
+    if 'questions' not in st.session_state:
+        st.session_state.questions = [""]  # 初始化一个空问题
+    
+    # 显示所有问题输入框
+    st.subheader("请输入关键问题")
+    
+    # 更新现有问题
+    updated_questions = []
+    for i, question in enumerate(st.session_state.questions):
+        q = st.text_input(f"问题 {i+1}", value=question, key=f"q_{i}")
+        updated_questions.append(q)
+    
+    # 添加新问题的按钮
+    if st.button("添加更多问题"):
+        st.session_state.questions.append("")
+        st.experimental_rerun()
+    
+    # 提交按钮
+    if st.button("提交"):
+        # 验证输入
+        if not interview_outline.strip():
+            st.error("请输入访谈大纲")
+            return
+            
+        # 过滤掉空的问题
+        key_questions = [q for q in updated_questions if q.strip()]
+        if not key_questions:
+            st.error("请至少输入一个关键问题")
+            return
+            
+        # 保存数据
+        if save_to_json(interview_outline, key_questions):
+            st.success("感谢您的提交！访谈大纲和问题已成功接收。")
+            
+            # 清空表单
+            st.session_state.questions = [""]
+            st.experimental_rerun()
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    main()
