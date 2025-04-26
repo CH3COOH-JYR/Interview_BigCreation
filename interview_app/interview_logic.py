@@ -292,7 +292,7 @@ def analyze_interview_outline(interview_outline, key_questions):
       Step 4) 提出评分指标
     
     - 分析的结果不需要输出（不打印），只在内存中留存
-    - 返回“评分指标”供后续总结阶段使用
+    - 返回"评分指标"供后续总结阶段使用
     """
     # 在此使用一个字典来存储可能的分析结果
     analysis_data = {
@@ -440,7 +440,14 @@ def generate_final_summary(dialog_history, interview_outline, rating_metrics):
                 "  \"points\": [...],           // numeric scores for each metric\n"
                 "  \"explanations\": [...]      // explanation for each score\n"
                 "}\n\n"
-                "Only output valid JSON with these three keys."
+                "Only output valid JSON with these three keys.\n\n"
+                "IMPORTANT: To avoid hallucinations, strictly adhere to these guidelines:\n"
+                "1. Only include conclusions that are directly supported by the interviewee's statements\n"
+                "2. Do not infer opinions, beliefs, or information that wasn't explicitly mentioned\n"
+                "3. If the interviewee's response was minimal or off-topic for a metric, reflect this in your scoring and explanations\n"
+                "4. Maintain factual accuracy - your summary must be grounded in the actual transcript\n"
+                "5. Use direct quotes or paraphrases when possible to support your conclusions\n"
+                "6. If certain metrics cannot be evaluated due to lack of relevant response, score them lower rather than fabricating an assessment"
             )
         },
         {

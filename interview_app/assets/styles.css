@@ -3,54 +3,89 @@ body {
     font-family: 'Arial', sans-serif;
     font-size: 16px;
     background-color: #f4f4f9; /* Light background color */
-    color: #000000; /* Set font color to black */
+    color: #000000; /* 黑色字体 */
 }
 
 h1,
 h2,
 h3 {
-    color: #2e7d32;
+    color: #000000; /* 将标题改为黑色 */
     font-family: 'Arial', sans-serif;
 }
 
-.title {
-    font-family: 'KaiTi', serif; /* Use KaiTi for the title */
-    font-size: 24px; /* Slightly smaller font size */
+/* 固定标题样式 */
+.title-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background-color: white;
+    z-index: 9999;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
     text-align: center;
-    color: #000000; /* Green color for the title */
-    margin-bottom: 20px;
 }
 
+.title {
+    color: #000000; /* 黑色标题 */
+    margin: 0;
+    padding: 10px 0;
+    font-size: 24px;
+}
+
+/* 主内容区域，给标题留出空间 */
+.main-content {
+    margin-top: 70px; /* 根据标题高度调整 */
+}
+
+/* 确保内容不会被标题遮挡 */
+.stApp {
+    padding-top: 50px;
+}
+
+/* 对话气泡样式 */
+.interviewer {
+    background-color: #f1f1f1;
+    border-radius: 10px;
+    padding: 10px 15px;
+    margin: 10px 0;
+    position: relative;
+    max-width: 80%;
+}
+
+.interviewee {
+    background-color: #e3f2fd;
+    border-radius: 10px;
+    padding: 10px 15px;
+    margin: 10px 0 10px auto;
+    position: relative;
+    max-width: 80%;
+}
+
+/* 输入框样式 */
 .stTextInput input {
-    font-size: 18px;
-    min-width: 400px;
-    min-height: 100px;
-    resize: none;
-    white-space: pre-wrap;
-}
-
-.stTextArea textarea {
-    font-size: 18px;
-    min-width: 400px;
-    min-height: 100px;
-    resize: none;
-    white-space: pre-wrap;
-}
-
-.stButton button {
-    background-color: #007BFF; /* Blue background color */
-    color: #FFFFFF; /* White text color */
     font-size: 16px;
-    padding: 10px 20px;
     border-radius: 5px;
-    border: none;
-    cursor: pointer;
+    padding: 10px;
+    margin: 10px 0;
 }
 
-.stButton button:hover {
-    background-color: #0056b3; /* Darker blue on hover */
+/* 按钮样式 */
+.stButton > button {
+    width: 100%;
+    border-radius: 5px;
+    background-color: #4CAF50;
+    color: white;
+    font-weight: bold;
+    margin: 5px 0;
 }
 
-.stTextInput {
-    margin-bottom: 20px;
+.stButton > button:hover {
+    background-color: #45a049;
+}
+
+/* 修复spinner问题 */
+.stSpinner {
+    text-align: center;
+    margin: 10px 0;
 }
