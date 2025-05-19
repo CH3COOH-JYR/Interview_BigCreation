@@ -1,4 +1,4 @@
-const Topic = require('../models/Topic');
+const Topic = require('./Topic');
 
 // 获取所有访谈主题
 exports.getAllTopics = async () => {
@@ -19,8 +19,8 @@ exports.getTopicById = async (id) => {
 // 更新访谈主题
 exports.updateTopic = async (id, topicData) => {
   return await Topic.findByIdAndUpdate(
-    id, 
-    topicData, 
+    id,
+    topicData,
     { new: true, runValidators: true }
   );
 };

@@ -1,7 +1,7 @@
 // 访谈相关API路由
 const express = require('express');
 const router = express.Router();
-const interviewController = require('../../controllers/interviewController');
+const interviewController = require('./interviewController');
 
 // 开始新访谈
 router.post('/', interviewController.startInterview);

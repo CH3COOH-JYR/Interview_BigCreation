@@ -1,5 +1,5 @@
-const Interview = require('../models/Interview');
-const Topic = require('../models/Topic');
+const Interview = require('./Interview');
+const Topic = require('./Topic');
 const modelService = require('./modelService');
 
 // 开始新访谈
@@ -9,7 +9,7 @@ exports.startInterview = async (topicId) => {
   if (!topic) {
     throw new Error('访谈主题不存在');
   }
-  
+
   // 创建新访谈
   const newInterview = new Interview({
     topicId,
@@ -17,7 +17,7 @@ exports.startInterview = async (topicId) => {
     currentQuestionIndex: 0,
     dialogHistory: []
   });
-  
+
   // 保存并返回新访谈
   return await newInterview.save();
 };
@@ -34,25 +34,25 @@ exports.submitResponse = async (interviewId, response) => {
   if (!interview || interview.status === 'completed') {
     return null;
   }
-  
+
   // 添加用户回答到对话历史
   interview.dialogHistory.push({
     role: 'interviewee',
     content: response,
     timestamp: new Date()
   });
-  
+
   // 分析回答深度
   const currentQuestion = getCurrentQuestion(interview);
   const depth = await modelService.evaluateResponse(currentQuestion, response);
-  
+
   let nextQuestion;
-  
+
   // 根据回答深度决定是否追问
   if (depth === 'SURFACE' || depth === 'DEEPER') {
     // 生成深入问题
     nextQuestion = await modelService.generateDeeperQuestion(currentQuestion, response);
-    
+
     // 添加追问到对话历史
     interview.dialogHistory.push({
       role: 'interviewer',
@@ -60,10 +60,10 @@ exports.submitResponse = async (interviewId, response) => {
       timestamp: new Date()
     });
   }
-  
+
   // 保存访谈
   await interview.save();
-  
+
   // 返回结果
   return {
     depth,
@@ -79,47 +79,47 @@ exports.getNextQuestion = async (interviewId) => {
   if (!interview || interview.status === 'completed') {
     return null;
   }
-  
+
   const topic = interview.topicId;
-  
+
   // 移动到下一个问题
   interview.currentQuestionIndex++;
-  
+
   // 检查是否已经问完所有问题
   if (interview.currentQuestionIndex >= topic.keyQuestions.length) {
     // 所有问题已问完，结束访谈
     interview.status = 'completed';
     await interview.save();
-    
+
     // 生成访谈总结
     await modelService.generateSummary(interviewId);
-    
+
     return {
       isCompleted: true,
       message: '访谈已完成'
     };
   }
-  
+
   // 获取当前问题
   const currentQuestion = topic.keyQuestions[interview.currentQuestionIndex];
-  
+
   // 生成过渡语句
-  const previousQuestion = interview.currentQuestionIndex > 0 
-    ? topic.keyQuestions[interview.currentQuestionIndex - 1] 
+  const previousQuestion = interview.currentQuestionIndex > 0
+    ? topic.keyQuestions[interview.currentQuestionIndex - 1]
     : null;
-  
+
   const transition = await modelService.generateTransition(previousQuestion, currentQuestion);
-  
+
   // 添加过渡语句和问题到对话历史
   interview.dialogHistory.push({
     role: 'interviewer',
     content: `${transition} ${currentQuestion}`,
     timestamp: new Date()
   });
-  
+
   // 保存访谈
   await interview.save();
-  
+
   // 返回结果
   return {
     question: currentQuestion,
@@ -137,14 +137,14 @@ exports.endInterview = async (interviewId) => {
   if (!interview || interview.status === 'completed') {
     return null;
   }
-  
+
   // 更新状态
   interview.status = 'completed';
   await interview.save();
-  
+
   // 生成访谈总结
   const summary = await modelService.generateSummary(interviewId);
-  
+
   return {
     isCompleted: true,
     summaryId: summary._id
@@ -156,3 +156,8 @@ function getCurrentQuestion(interview) {
   const topic = interview.topicId;
   return topic.keyQuestions[interview.currentQuestionIndex];
 }
+
+// 获取特定主题的所有访谈
+exports.getInterviewsByTopic = async (topicId) => {
+  return await Interview.find({ topicId: topicId }).populate('topicId').sort({ createdAt: -1 });
+};

@@ -1,17 +1,17 @@
-const interviewService = require('../services/interviewService');
+const interviewService = require('./interviewService');
 
 // 开始新访谈
 exports.startInterview = async (req, res) => {
   try {
     const { topicId } = req.body;
-    
+
     if (!topicId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: '访谈主题ID是必需的' 
+      return res.status(400).json({
+        success: false,
+        message: '访谈主题ID是必需的'
       });
     }
-    
+
     const interview = await interviewService.startInterview(topicId);
     res.status(201).json({ success: true, data: interview });
   } catch (error) {
@@ -24,11 +24,11 @@ exports.startInterview = async (req, res) => {
 exports.getInterviewStatus = async (req, res) => {
   try {
     const interview = await interviewService.getInterviewById(req.params.id);
-    
+
     if (!interview) {
       return res.status(404).json({ success: false, message: '未找到访谈' });
     }
-    
+
     res.json({ success: true, data: interview });
   } catch (error) {
     console.error('Error getting interview status:', error);
@@ -40,20 +40,20 @@ exports.getInterviewStatus = async (req, res) => {
 exports.submitResponse = async (req, res) => {
   try {
     const { response } = req.body;
-    
+
     if (!response) {
-      return res.status(400).json({ 
-        success: false, 
-        message: '用户回答是必需的' 
+      return res.status(400).json({
+        success: false,
+        message: '用户回答是必需的'
       });
     }
-    
+
     const result = await interviewService.submitResponse(req.params.id, response);
-    
+
     if (!result) {
       return res.status(404).json({ success: false, message: '未找到访谈或访谈已结束' });
     }
-    
+
     res.json({ success: true, data: result });
   } catch (error) {
     console.error('Error submitting response:', error);
@@ -65,11 +65,11 @@ exports.submitResponse = async (req, res) => {
 exports.getNextQuestion = async (req, res) => {
   try {
     const result = await interviewService.getNextQuestion(req.params.id);
-    
+
     if (!result) {
       return res.status(404).json({ success: false, message: '未找到访谈或访谈已结束' });
     }
-    
+
     res.json({ success: true, data: result });
   } catch (error) {
     console.error('Error getting next question:', error);
@@ -81,14 +81,26 @@ exports.getNextQuestion = async (req, res) => {
 exports.endInterview = async (req, res) => {
   try {
     const result = await interviewService.endInterview(req.params.id);
-    
+
     if (!result) {
       return res.status(404).json({ success: false, message: '未找到访谈或访谈已结束' });
     }
-    
+
     res.json({ success: true, data: result });
   } catch (error) {
     console.error('Error ending interview:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// 获取特定主题的所有访谈
+exports.getInterviewsByTopic = async (req, res) => {
+  try {
+    const { topicId } = req.params;
+    const interviews = await interviewService.getInterviewsByTopic(topicId);
+    res.json({ success: true, data: interviews });
+  } catch (error) {
+    console.error('Error getting interviews by topic:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

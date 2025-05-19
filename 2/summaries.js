@@ -1,7 +1,7 @@
 // 总结相关API路由
 const express = require('express');
 const router = express.Router();
-const summaryController = require('../../controllers/summaryController');
+const summaryController = require('./summaryController');
 
 // 获取访谈总结
 router.get('/:interviewId', summaryController.getSummary);

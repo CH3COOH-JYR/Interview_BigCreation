@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const topicController = require('../../controllers/topicController');
+const topicController = require('./topicController');
 
 // 获取所有访谈主题
 router.get('/', topicController.getAllTopics);

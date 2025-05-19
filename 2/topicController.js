@@ -1,4 +1,4 @@
-const topicService = require('../services/topicService');
+const topicService = require('./topicService');
 
 // 获取所有访谈主题
 exports.getAllTopics = async (req, res) => {
@@ -15,21 +15,21 @@ exports.getAllTopics = async (req, res) => {
 exports.createTopic = async (req, res) => {
   try {
     const { title, outline, keyQuestions } = req.body;
-    
+
     // 验证必要字段
     if (!outline || !keyQuestions || keyQuestions.length === 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: '访谈大纲和至少一个关键问题是必需的' 
+      return res.status(400).json({
+        success: false,
+        message: '访谈大纲和至少一个关键问题是必需的'
       });
     }
-    
+
     const newTopic = await topicService.createTopic({
       title: title || `访谈主题 ${new Date().toLocaleString()}`,
       outline,
       keyQuestions
     });
-    
+
     res.status(201).json({ success: true, data: newTopic });
   } catch (error) {
     console.error('Error creating topic:', error);
@@ -60,11 +60,11 @@ exports.updateTopic = async (req, res) => {
       outline,
       keyQuestions
     });
-    
+
     if (!updatedTopic) {
       return res.status(404).json({ success: false, message: '未找到访谈主题' });
     }
-    
+
     res.json({ success: true, data: updatedTopic });
   } catch (error) {
     console.error('Error updating topic:', error);
