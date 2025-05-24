@@ -122,7 +122,7 @@ export default {
     
     // 导航到创建页面
     const navigateToCreate = () => {
-      router.push({ name: 'CreateTopic' });
+      router.push({ name: 'createTopic' });
     };
     
     // 开始访谈
@@ -131,7 +131,7 @@ export default {
         const result = await store.dispatch('interview/startInterview', topicId);
         if (result) {
           router.push({ 
-            name: 'Interview', 
+            name: 'interview', 
             params: { id: result._id } 
           });
         }
@@ -142,9 +142,10 @@ export default {
     
     // 编辑主题
     const editTopic = (topic) => {
+      ElMessage.info('编辑功能开发中，将重定向到创建页面');
       router.push({ 
-        name: 'EditTopic', 
-        params: { id: topic._id } 
+        name: 'createTopic',
+        query: { edit: topic._id }
       });
     };
     
