@@ -45,6 +45,19 @@
               <span class="message-time">{{ formatTime(message.timestamp) }}</span>
             </div>
           </div>
+          
+          <!-- AI思考中的提示 -->
+          <div v-if="isAIThinking" class="message interviewer ai-thinking">
+            <div class="message-content thinking-content">
+              <div class="thinking-indicator">
+                <el-icon class="thinking-icon">
+                  <loading />
+                </el-icon>
+                <span class="thinking-text">AI访谈者思考中...</span>
+              </div>
+              <span class="message-time">{{ formatTime(new Date()) }}</span>
+            </div>
+          </div>
         </div>
       </el-card>
 
@@ -134,9 +147,13 @@ import { computed, onMounted, ref } from 'vue';
 import { useStore } from 'vuex';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import { Loading } from '@element-plus/icons-vue';
 
 export default {
   name: 'InterviewView',
+  components: {
+    Loading
+  },
   setup() {
     const store = useStore();
     const router = useRouter();
@@ -146,6 +163,7 @@ export default {
     const isSubmitting = ref(false);
     const isLoadingNext = ref(false);
     const endDialogVisible = ref(false);
+    const isAIThinking = ref(false);
     
     // 从store获取数据
     const currentInterview = computed(() => store.getters['interview/currentInterview']);
@@ -161,24 +179,24 @@ export default {
     
     // 进度计算
     const progressPercentage = computed(() => {
-      if (!currentInterview.value || !currentInterview.value.topicId) return 0;
+      if (!currentInterview.value || !currentInterview.value.topicId || !currentInterview.value.topicId.keyQuestions) return 0;
       
       const totalQuestions = currentInterview.value.topicId.keyQuestions.length;
       if (totalQuestions === 0) return 0;
       
       if (isCompleted.value) return 100;
       
-      const currentIndex = currentInterview.value.currentQuestionIndex;
+      const currentIndex = currentInterview.value.currentQuestionIndex || 0;
       return Math.round((currentIndex / totalQuestions) * 100);
     });
     
     const progressFormat = () => {
-      if (!currentInterview.value || !currentInterview.value.topicId) return '';
+      if (!currentInterview.value || !currentInterview.value.topicId || !currentInterview.value.topicId.keyQuestions) return '';
       
       const totalQuestions = currentInterview.value.topicId.keyQuestions.length;
       if (totalQuestions === 0) return '';
       
-      const currentIndex = currentInterview.value.currentQuestionIndex;
+      const currentIndex = currentInterview.value.currentQuestionIndex || 0;
       return `${currentIndex}/${totalQuestions}`;
     };
     
@@ -207,6 +225,8 @@ export default {
       }
       
       isSubmitting.value = true;
+      isAIThinking.value = true; // 显示AI思考提示
+      
       try {
         const result = await store.dispatch('interview/submitResponse', userResponse.value);
         if (result) {
@@ -219,12 +239,15 @@ export default {
         ElMessage.error('提交回答失败');
       } finally {
         isSubmitting.value = false;
+        isAIThinking.value = false; // 隐藏AI思考提示
       }
     };
     
     // 获取下一个问题
     const getNextQuestion = async () => {
       isLoadingNext.value = true;
+      isAIThinking.value = true; // 显示AI思考提示
+      
       try {
         const result = await store.dispatch('interview/getNextQuestion');
         if (result) {
@@ -240,6 +263,7 @@ export default {
         ElMessage.error('获取下一个问题失败');
       } finally {
         isLoadingNext.value = false;
+        isAIThinking.value = false; // 隐藏AI思考提示
       }
     };
     
@@ -250,30 +274,34 @@ export default {
     
     // 结束访谈
     const endInterview = async () => {
+      isAIThinking.value = true; // 显示AI思考提示（生成总结需要时间）
+      
       try {
         const result = await store.dispatch('interview/endInterview');
         if (result) {
           endDialogVisible.value = false;
-          ElMessage.success('访谈已结束');
+          ElMessage.success('访谈已结束，正在生成总结...');
         } else {
           ElMessage.error('结束访谈失败');
         }
       } catch (error) {
         ElMessage.error('结束访谈失败');
+      } finally {
+        isAIThinking.value = false; // 隐藏AI思考提示
       }
     };
     
     // 查看总结
     const viewSummary = () => {
       router.push({ 
-        name: 'Summary', 
-        params: { id: currentInterview.value._id } 
+        name: 'summary', 
+        params: { interviewId: currentInterview.value._id } 
       });
     };
     
     // 返回主页
     const backToHome = () => {
-      router.push({ name: 'Home' });
+      router.push({ name: 'home' });
     };
     
     // 格式化时间
@@ -297,6 +325,7 @@ export default {
       isCompleted,
       isSubmitting,
       isLoadingNext,
+      isAIThinking,
       endDialogVisible,
       topicTitle,
       topicOutline,
@@ -439,5 +468,41 @@ export default {
 
 .completed-message {
   padding: 20px 0;
+}
+
+/* AI思考提示样式 */
+.ai-thinking .message-content {
+  background-color: #f0f2f5 !important;
+  border: 1px dashed #d1d5db;
+  opacity: 0.8;
+}
+
+.thinking-content {
+  position: relative;
+}
+
+.thinking-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.thinking-icon {
+  animation: spin 1s linear infinite;
+  color: #409eff;
+}
+
+.thinking-text {
+  color: #606266;
+  font-style: italic;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

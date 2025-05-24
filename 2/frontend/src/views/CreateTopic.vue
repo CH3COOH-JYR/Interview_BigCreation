@@ -122,11 +122,11 @@ export default {
             }
           } else {
             ElMessage.error('获取主题数据失败');
-            router.push({ name: 'Home' });
+            router.push({ name: 'home' });
           }
         } catch (error) {
           ElMessage.error('获取主题数据失败');
-          router.push({ name: 'Home' });
+          router.push({ name: 'home' });
         }
       }
     });
@@ -147,61 +147,65 @@ export default {
     const submitForm = async () => {
       if (!formRef.value) return;
       
-      await formRef.value.validate(async (valid) => {
-        if (valid) {
-          // 过滤掉空问题
-          const filteredQuestions = form.keyQuestions.filter(q => q.trim() !== '');
+      try {
+        const valid = await formRef.value.validate();
+        if (!valid) {
+          ElMessage.warning('请完善表单信息');
+          return;
+        }
+
+        // 过滤掉空问题
+        const filteredQuestions = form.keyQuestions.filter(q => q.trim() !== '');
+        
+        if (filteredQuestions.length === 0) {
+          ElMessage.warning('请至少添加一个关键问题');
+          return;
+        }
+        
+        const topicData = {
+          title: form.title,
+          outline: form.outline,
+          keyQuestions: filteredQuestions
+        };
+        
+        let result;
+        
+        if (isEditing.value) {
+          // 更新主题
+          result = await store.dispatch('topics/updateTopic', {
+            id: route.params.id,
+            topicData
+          });
           
-          if (filteredQuestions.length === 0) {
-            ElMessage.warning('请至少添加一个关键问题');
+          if (result) {
+            ElMessage.success('主题更新成功');
+            router.push({ name: 'home' });
             return;
           }
-          
-          const topicData = {
-            title: form.title,
-            outline: form.outline,
-            keyQuestions: filteredQuestions
-          };
-          
-          try {
-            let result;
-            
-            if (isEditing.value) {
-              // 更新主题
-              result = await store.dispatch('topics/updateTopic', {
-                id: route.params.id,
-                topicData
-              });
-              
-              if (result) {
-                ElMessage.success('主题更新成功');
-                router.push({ name: 'Home' });
-              } else {
-                ElMessage.error(error.value || '更新主题失败');
-              }
-            } else {
-              // 创建新主题
-              result = await store.dispatch('topics/createTopic', topicData);
-              
-              if (result) {
-                ElMessage.success('主题创建成功');
-                router.push({ name: 'Home' });
-              } else {
-                ElMessage.error(error.value || '创建主题失败');
-              }
-            }
-          } catch (err) {
-            ElMessage.error('操作失败，请重试');
-          }
         } else {
-          ElMessage.warning('请完善表单信息');
+          // 创建新主题
+          result = await store.dispatch('topics/createTopic', topicData);
+          
+          if (result) {
+            ElMessage.success('主题创建成功');
+            router.push({ name: 'home' });
+            return;
+          }
         }
-      });
+        
+        // 只有在没有成功时才显示错误消息
+        const errorMsg = error.value || (isEditing.value ? '更新主题失败' : '创建主题失败');
+        ElMessage.error(errorMsg);
+        
+      } catch (err) {
+        console.error('Create/Update topic error:', err);
+        ElMessage.error('操作失败，请重试');
+      }
     };
     
     // 取消
     const cancel = () => {
-      router.push({ name: 'Home' });
+      router.push({ name: 'home' });
     };
     
     return {

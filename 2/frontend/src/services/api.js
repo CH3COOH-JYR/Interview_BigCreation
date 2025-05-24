@@ -77,6 +77,11 @@ export const summariesAPI = {
   // 导出总结
   exportSummary(interviewId, format = 'json') {
     return apiClient.post(`/summaries/${interviewId}/export`, { format });
+  },
+
+  // 获取所有总结
+  getAllSummaries() {
+    return apiClient.get('/summaries');
   }
 };
 

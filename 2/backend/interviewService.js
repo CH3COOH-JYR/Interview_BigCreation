@@ -10,16 +10,57 @@ exports.startInterview = async (topicId) => {
     throw new Error('访谈主题不存在');
   }
 
-  // 创建新访谈
+  console.log('开始创建访谈，同步生成背景问题...');
+
+  // 先生成背景问题
+  let backgroundQuestion;
+  try {
+    backgroundQuestion = await modelService.generateBackgroundQuestion(topic.outline);
+    console.log('背景问题生成成功:', backgroundQuestion);
+  } catch (error) {
+    console.error('背景问题生成失败，使用默认问题:', error);
+    backgroundQuestion = '欢迎参与本次访谈！请先简单介绍一下您的背景和与今天访谈主题的相关经验。';
+  }
+
+  // 创建新访谈，包含第一个问题
   const newInterview = new Interview({
     topicId,
     status: 'in-progress',
     currentQuestionIndex: 0,
-    dialogHistory: []
+    dialogHistory: [
+      {
+        role: 'interviewer',
+        content: backgroundQuestion,
+        timestamp: new Date()
+      }
+    ],
+    ratingMetrics: [
+      '回答完整性',
+      '思考深度',
+      '逻辑清晰度',
+      '个人见解',
+      '表达能力'
+    ] // 使用默认评分指标，避免启动时的AI调用延迟
   });
 
-  // 保存并返回新访谈
-  return await newInterview.save();
+  // 保存访谈记录
+  const savedInterview = await newInterview.save();
+
+  // 异步生成评分指标（不阻塞主流程）
+  setImmediate(async () => {
+    try {
+      const ratingMetrics = await modelService.analyzeInterviewOutline(topic.outline, topic.keyQuestions);
+      const interview = await Interview.findById(savedInterview._id);
+      interview.ratingMetrics = ratingMetrics;
+      await interview.save();
+      console.log('评分指标生成成功:', ratingMetrics);
+    } catch (metricsError) {
+      console.error('评分指标生成失败，使用默认指标:', metricsError);
+    }
+  });
+
+  console.log('访谈创建完成，ID:', savedInterview._id);
+  return savedInterview;
 };
 
 // 获取访谈信息

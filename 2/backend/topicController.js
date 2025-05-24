@@ -17,17 +17,40 @@ exports.createTopic = async (req, res) => {
     const { title, outline, keyQuestions } = req.body;
 
     // 验证必要字段
-    if (!outline || !keyQuestions || keyQuestions.length === 0) {
+    if (!title || !title.trim()) {
       return res.status(400).json({
         success: false,
-        message: '访谈大纲和至少一个关键问题是必需的'
+        message: '主题标题是必需的'
+      });
+    }
+
+    if (!outline || !outline.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: '访谈大纲是必需的'
+      });
+    }
+
+    if (!keyQuestions || !Array.isArray(keyQuestions) || keyQuestions.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: '至少需要一个关键问题'
+      });
+    }
+
+    // 过滤掉空的问题
+    const filteredQuestions = keyQuestions.filter(q => q && q.trim() !== '');
+    if (filteredQuestions.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: '至少需要一个有效的关键问题'
       });
     }
 
     const newTopic = await topicService.createTopic({
-      title: title || `访谈主题 ${new Date().toLocaleString()}`,
-      outline,
-      keyQuestions
+      title: title.trim(),
+      outline: outline.trim(),
+      keyQuestions: filteredQuestions
     });
 
     res.status(201).json({ success: true, data: newTopic });

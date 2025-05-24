@@ -43,6 +43,9 @@
                   <el-button size="small" @click="startInterview(topic._id)">
                     开始访谈
                   </el-button>
+                  <el-button size="small" @click="viewTopicSummaries()" type="info">
+                    查看总结
+                  </el-button>
                   <el-dropdown trigger="click">
                     <el-button size="small">
                       <el-icon><more /></el-icon>
@@ -75,6 +78,32 @@
       </el-col>
     </el-row>
     
+    <!-- 访谈准备对话框 -->
+    <el-dialog
+      v-model="preparingDialogVisible"
+      title="访谈准备中"
+      width="40%"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      :show-close="false"
+      center
+    >
+      <div class="preparing-content">
+        <div class="preparing-icon">
+          <el-icon :size="48" color="#409EFF">
+            <loading />
+          </el-icon>
+        </div>
+        <h3>正在为您准备访谈</h3>
+        <p class="preparing-text">{{ preparingText }}</p>
+        <el-progress 
+          :percentage="preparingProgress" 
+          :status="preparingProgress === 100 ? 'success' : ''"
+          :stroke-width="8"
+        />
+      </div>
+    </el-dialog>
+
     <!-- 删除确认对话框 -->
     <el-dialog
       v-model="deleteDialogVisible"
@@ -97,18 +126,24 @@ import { computed, onMounted, ref } from 'vue';
 import { useStore } from 'vuex';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { More } from '@element-plus/icons-vue';
+import { More, Loading } from '@element-plus/icons-vue';
 
 export default {
   name: 'HomeView',
   components: {
-    More
+    More,
+    Loading
   },
   setup() {
     const store = useStore();
     const router = useRouter();
     const deleteDialogVisible = ref(false);
     const topicToDelete = ref(null);
+    
+    // 访谈准备相关状态
+    const preparingDialogVisible = ref(false);
+    const preparingProgress = ref(0);
+    const preparingText = ref('初始化访谈...');
     
     // 从store获取数据
     const topics = computed(() => store.getters['topics/allTopics']);
@@ -127,19 +162,86 @@ export default {
     
     // 开始访谈
     const startInterview = async (topicId) => {
+      // 显示准备对话框
+      preparingDialogVisible.value = true;
+      preparingProgress.value = 0;
+      preparingText.value = '正在创建访谈实例...';
+      
+      // 声明progressInterval，让它在整个函数作用域内可用
+      let progressInterval = null;
+      
       try {
+        // 模拟进度更新
+        progressInterval = setInterval(() => {
+          if (preparingProgress.value < 90) {
+            preparingProgress.value += 10;
+            
+            if (preparingProgress.value === 20) {
+              preparingText.value = '正在加载主题信息...';
+            } else if (preparingProgress.value === 40) {
+              preparingText.value = '正在生成背景问题...';
+            } else if (preparingProgress.value === 60) {
+              preparingText.value = '正在配置AI助手...';
+            } else if (preparingProgress.value === 80) {
+              preparingText.value = '正在完成最后准备...';
+            }
+          }
+        }, 200);
+        
         const result = await store.dispatch('interview/startInterview', topicId);
+        
+        if (progressInterval) {
+          clearInterval(progressInterval);
+        }
+        
         if (result) {
-          router.push({ 
-            name: 'interview', 
-            params: { id: result._id } 
-          });
+          // 完成准备
+          preparingProgress.value = 100;
+          preparingText.value = '准备完成！正在进入访谈...';
+          
+          // 等待一会儿让用户看到完成状态
+          setTimeout(() => {
+            preparingDialogVisible.value = false;
+            router.push({ 
+              name: 'interview', 
+              params: { id: result._id } 
+            });
+          }, 800);
+        } else {
+          preparingDialogVisible.value = false;
+          ElMessage.error('开始访谈失败');
         }
       } catch (error) {
+        if (progressInterval) {
+          clearInterval(progressInterval);
+        }
+        preparingDialogVisible.value = false;
         ElMessage.error('开始访谈失败');
       }
     };
     
+    // 查看主题的所有总结
+    const viewTopicSummaries = async () => {
+      try {
+        ElMessage.info('提示：总结功能说明', {
+          message: `
+            <div style="line-height: 1.6;">
+              <strong>查看总结的方法：</strong><br/>
+              1. 点击"开始访谈"进行新访谈<br/>
+              2. 完成访谈后，在访谈页面点击"查看总结"<br/>
+              3. 总结包含完整的对话记录和AI评分<br/>
+              4. 支持导出JSON和文本格式
+            </div>
+          `,
+          type: 'info',
+          duration: 8000,
+          dangerouslyUseHTMLString: true
+        });
+      } catch (error) {
+        ElMessage.error('查看总结失败');
+      }
+    };
+
     // 编辑主题
     const editTopic = (topic) => {
       ElMessage.info('编辑功能开发中，将重定向到创建页面');
@@ -193,8 +295,12 @@ export default {
       error,
       deleteDialogVisible,
       topicToDelete,
+      preparingDialogVisible,
+      preparingProgress,
+      preparingText,
       navigateToCreate,
       startInterview,
+      viewTopicSummaries,
       editTopic,
       confirmDelete,
       deleteTopic,
@@ -272,5 +378,27 @@ export default {
   font-size: 12px;
   color: #909399;
   margin: 0;
+}
+
+/* 访谈准备对话框样式 */
+.preparing-content {
+  text-align: center;
+  padding: 20px;
+}
+
+.preparing-icon {
+  margin-bottom: 20px;
+}
+
+.preparing-content h3 {
+  margin: 0 0 15px 0;
+  color: #303133;
+  font-size: 18px;
+}
+
+.preparing-text {
+  margin: 0 0 20px 0;
+  color: #606266;
+  font-size: 14px;
 }
 </style>

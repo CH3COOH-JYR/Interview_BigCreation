@@ -123,10 +123,10 @@ export default {
     
     // 获取总结
     onMounted(async () => {
-      const interviewId = route.params.id;
+      const interviewId = route.params.interviewId;
       if (!interviewId) {
         ElMessage.error('访谈ID无效');
-        router.push({ name: 'Home' });
+        router.push({ name: 'home' });
         return;
       }
       
@@ -135,7 +135,7 @@ export default {
     
     // 刷新总结
     const refreshSummary = async () => {
-      const interviewId = route.params.id;
+      const interviewId = route.params.interviewId;
       if (!interviewId) return;
       
       await store.dispatch('summary/getSummary', interviewId);
@@ -143,7 +143,7 @@ export default {
     
     // 导出总结
     const exportSummary = async (format) => {
-      const interviewId = route.params.id;
+      const interviewId = route.params.interviewId;
       if (!interviewId) return;
       
       try {
@@ -180,7 +180,7 @@ export default {
     
     // 返回主页
     const backToHome = () => {
-      router.push({ name: 'Home' });
+      router.push({ name: 'home' });
     };
     
     return {

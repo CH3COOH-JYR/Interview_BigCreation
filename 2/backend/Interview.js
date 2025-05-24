@@ -30,6 +30,13 @@ const InterviewSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  ratingMetrics: [{
+    type: String
+  }], // 存储评分指标
+  summary: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Summary'
+  }, // 引用总结文档
   createdAt: {
     type: Date,
     default: Date.now
@@ -41,7 +48,7 @@ const InterviewSchema = new mongoose.Schema({
 });
 
 // 更新时自动更新updatedAt字段
-InterviewSchema.pre('save', function(next) {
+InterviewSchema.pre('save', function (next) {
   this.updatedAt = Date.now();
   next();
 });

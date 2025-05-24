@@ -53,17 +53,20 @@ const topics = {
     },
     async createTopic({ commit }, topicData) {
       commit('SET_LOADING', true);
+      commit('SET_ERROR', null); // 清空之前的错误
       try {
         const response = await topicsAPI.createTopic(topicData);
-        commit('ADD_TOPIC', response.data.data);
+        const createdTopic = response.data.data;
+        commit('ADD_TOPIC', createdTopic);
         commit('SET_ERROR', null);
-        return response.data.data;
-      } catch (error) {
-        commit('SET_ERROR', error.response?.data?.message || '创建主题失败');
-        console.error('Error creating topic:', error);
-        return null;
-      } finally {
         commit('SET_LOADING', false);
+        return createdTopic;
+      } catch (error) {
+        const errorMessage = error.response?.data?.message || '创建主题失败';
+        commit('SET_ERROR', errorMessage);
+        console.error('Error creating topic:', error);
+        commit('SET_LOADING', false);
+        return null;
       }
     },
     async updateTopic({ commit }, { id, topicData }) {
@@ -166,7 +169,7 @@ const interview = {
       commit('SET_LOADING', true);
       try {
         commit('ADD_TO_DIALOG', { role: 'interviewee', content: responseText, timestamp: new Date() });
-        const apiResponse = await interviewsAPI.submitResponse(state.currentInterview._id, { response: responseText });
+        const apiResponse = await interviewsAPI.submitResponse(state.currentInterview._id, responseText);
         if (apiResponse.data.data.nextQuestion) {
           commit('ADD_TO_DIALOG', { role: 'interviewer', content: apiResponse.data.data.nextQuestion, timestamp: new Date() });
           commit('SET_CURRENT_QUESTION', apiResponse.data.data.nextQuestion);
@@ -227,6 +230,7 @@ const interview = {
     dialogHistory: state => state.dialogHistory,
     isLoading: state => state.loading,
     error: state => state.error,
+    isCompleted: state => state.currentInterview?.status === 'completed'
   }
 };
 
@@ -234,13 +238,15 @@ const summaries = {
   namespaced: true,
   state: {
     currentSummary: null,
-    allSummaries: [], // Added for consistency, assuming you might list summaries
+    allSummaries: [],
+    exportedSummary: null,
     loading: false,
     error: null
   },
   mutations: {
     SET_CURRENT_SUMMARY(state, summary) { state.currentSummary = summary; },
-    SET_ALL_SUMMARIES(state, summaries) { state.allSummaries = summaries; }, // Added
+    SET_ALL_SUMMARIES(state, summaries) { state.allSummaries = summaries; },
+    SET_EXPORTED_SUMMARY(state, exportedSummary) { state.exportedSummary = exportedSummary; },
     SET_LOADING(state, status) { state.loading = status; },
     SET_ERROR(state, error) { state.error = error; }
   },
@@ -263,7 +269,8 @@ const summaries = {
     async exportSummary({ commit }, { interviewId, format }) {
       commit('SET_LOADING', true);
       try {
-        const response = await summariesAPI.exportSummary(interviewId, format); // Assuming this API exists
+        const response = await summariesAPI.exportSummary(interviewId, format);
+        commit('SET_EXPORTED_SUMMARY', response.data.data);
         commit('SET_ERROR', null);
         return response.data.data;
       } catch (error) {
@@ -291,7 +298,8 @@ const summaries = {
   },
   getters: {
     currentSummary: state => state.currentSummary,
-    allSummaries: state => state.allSummaries, // Added
+    allSummaries: state => state.allSummaries,
+    exportedSummary: state => state.exportedSummary,
     isLoading: state => state.loading,
     error: state => state.error
   }
