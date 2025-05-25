@@ -454,15 +454,20 @@ exports.generateSummary = async (interviewId) => {
       {
         role: "system",
         content: (
-          "You are now in the '总结状态'. You have the entire interview transcript. "
-          + "You also have a set of rating metrics. "
-          + "You will produce a final summary in JSON format with the structure:\n\n"
+          "你是一位专业的访谈分析师。你需要客观分析完整的访谈记录并生成中文总结。"
+          + "评分原则：\n"
+          + "1. 基于访谈记录中的实际内容进行评分，不得进行假设或推测\n"
+          + "2. 如果访谈中缺乏某项指标的相关信息，应给予低分（1-3分）\n"
+          + "3. 只有当访谈记录中有充分证据支持时，才能给予高分\n"
+          + "4. 评分必须为1-10的整数，不允许小数\n"
+          + "5. 评分标准：1-2分（很差/无相关内容），3-4分（较差/信息不足），5-6分（一般/有基本信息），7-8分（良好/信息充分），9-10分（优秀/信息丰富且深入）\n\n"
+          + "输出JSON格式：\n"
           + "{\n"
-          + "  \"takeaways\": \"...\",      // main conclusions including chat history summary\n"
-          + "  \"points\": [...],           // numeric scores for each metric (1-10)\n"
-          + "  \"explanations\": [...]      // explanation for each score\n"
+          + "  \"takeaways\": \"...\",      // 主要结论和访谈过程概述，必须使用中文\n"
+          + "  \"points\": [...],           // 每个指标的整数评分 (1-10)\n"
+          + "  \"explanations\": [...]      // 每个评分的客观解释，说明评分依据\n"
           + "}\n\n"
-          + "Only output valid JSON with these three keys."
+          + "只输出有效的JSON，所有内容必须使用中文。"
         )
       },
       {
@@ -470,14 +475,15 @@ exports.generateSummary = async (interviewId) => {
         content: (
           `访谈主题: ${interview.topicId.title}\n`
           + `访谈大纲: ${interview.topicId.outline}\n\n`
-          + `访谈完整记录（包含时间戳）:\n${conversationText}\n\n`
+          + `访谈完整记录:\n${conversationText}\n\n`
           + `评分指标列表:\n${ratingMetricsStr}\n\n`
-          + "请根据以上信息，对受访者进行打分并生成总结。"
-          + "将上述总结转换为json字典，第一个键是takeaways，"
-          + "值是一个字符串，包含你从访谈中得到的结论和对话过程概述；"
-          + "第二个键是points，值是一个列表，每个元素是对应的评分指标的分值（1-10分）；"
-          + "第三个键是explanations，值是一个列表，对应每个评分指标的解释。"
-          + "以文本形式输出这个json字典即可。"
+          + "请严格按照以下要求进行分析：\n"
+          + "1. 仔细阅读访谈记录，寻找与每个评分指标相关的具体内容\n"
+          + "2. 如果访谈记录中没有足够信息支持某个指标，必须给予低分（1-3分）\n"
+          + "3. 不要进行任何假设或推测，严格基于访谈实际内容\n"
+          + "4. 评分必须为1-10的整数\n"
+          + "5. 在explanations中明确说明评分依据，引用访谈中的具体内容\n\n"
+          + "输出格式：JSON字典，包含takeaways（中文总结）、points（整数评分数组）、explanations（评分依据说明数组）"
         )
       }
     ];
@@ -508,17 +514,30 @@ exports.generateSummary = async (interviewId) => {
 
         // 确保points数组长度匹配
         if (parsedResult.points.length !== ratingMetrics.length) {
-          parsedResult.points = ratingMetrics.map(() => 5);
+          parsedResult.points = ratingMetrics.map(() => 3); // 信息不足给予低分
         }
+
+        // 确保所有评分都是1-10的整数
+        parsedResult.points = parsedResult.points.map(score => {
+          let intScore = Math.round(Number(score));
+          // 确保在1-10范围内
+          if (intScore < 1) intScore = 1;
+          if (intScore > 10) intScore = 10;
+          return intScore;
+        });
 
         // 确保explanations数组长度匹配
         if (parsedResult.explanations.length !== ratingMetrics.length) {
-          parsedResult.explanations = ratingMetrics.map(() => "基于访谈内容进行评估。");
+          parsedResult.explanations = ratingMetrics.map(() => "访谈信息不足，无法进行有效评估。");
         }
 
         // 确保takeaways包含对话记录
         if (!parsedResult.takeaways.includes('对话记录') && !parsedResult.takeaways.includes('访谈过程')) {
-          parsedResult.takeaways += `\n\n详细对话记录：\n${conversationText}`;
+          // 如果对话记录很长，只取前500个字符作为摘要
+          const conversationSummary = conversationText.length > 500
+            ? conversationText.substring(0, 500) + '...\n\n（完整对话记录已保存）'
+            : conversationText;
+          parsedResult.takeaways += `\n\n访谈过程摘要：\n${conversationSummary}`;
         }
 
         console.log('AI总结解析成功');
@@ -535,11 +554,11 @@ exports.generateSummary = async (interviewId) => {
     // 如果AI调用失败或解析失败，使用默认总结
     if (!parsedResult) {
       parsedResult = {
-        takeaways: `访谈主题：${interview.topicId.title}\n访谈已完成，感谢受访者的参与。\n\n详细对话记录：\n${conversationText}`,
-        points: ratingMetrics.map(() => 5), // 默认中等分数
+        takeaways: `访谈主题：${interview.topicId.title}\n\n本次访谈已顺利完成，感谢受访者的积极参与和深入分享。通过与受访者的对话交流，我们获得了宝贵的见解和观点。\n\n访谈过程回顾：\n${conversationText}`,
+        points: ratingMetrics.map(() => 3), // 信息不足给予低分
         explanations: ratingMetrics.map(() => "基于访谈内容进行评估。")
       };
-      console.log('使用默认总结');
+      console.log('使用默认中文总结');
     }
 
     // 保存总结到数据库
@@ -593,9 +612,9 @@ exports.generateSummary = async (interviewId) => {
           topicId: interview.topicId._id,
           topicTitle: interview.topicId?.title || '未知主题',
           summaryNumber,
-          takeaways: `访谈主题：${interview.topicId?.title || '未知主题'}\n访谈已完成，但总结生成过程中遇到技术问题。`,
-          points: [5, 5, 5, 5, 5], // 默认分数
-          explanations: ['技术问题导致无法生成详细评分', '技术问题导致无法生成详细评分', '技术问题导致无法生成详细评分', '技术问题导致无法生成详细评分', '技术问题导致无法生成详细评分']
+          takeaways: `访谈主题：${interview.topicId?.title || '未知主题'}\n\n本次访谈已完成，但由于技术问题，无法生成详细的总结分析。访谈记录已保存完整。如需详细分析，请联系技术支持。`,
+          points: [3, 3, 3, 3, 3], // 技术问题导致信息不足，给予低分
+          explanations: ['由于技术问题无法生成详细评分，请手动评估', '由于技术问题无法生成详细评分，请手动评估', '由于技术问题无法生成详细评分，请手动评估', '由于技术问题无法生成详细评分，请手动评估', '由于技术问题无法生成详细评分，请手动评估']
         });
 
         await emergencySummary.save();
@@ -639,5 +658,85 @@ exports.analyzeVoice = async (audioData) => {
   } catch (error) {
     console.error('Error analyzing voice:', error);
     return null;
+  }
+};
+
+// 判断回答是否偏题并生成引导
+exports.checkOffTopicAndGuide = async (currentQuestion, userResponse) => {
+  const messages = [
+    {
+      role: "system",
+      content: (
+        "你是一位经验丰富的访谈员。你需要判断受访者的回答是否偏离了问题主题。"
+        + "判断标准：\n"
+        + "1. 回答是否直接回应了问题的核心内容\n"
+        + "2. 回答是否包含与问题相关的信息\n"
+        + "3. 回答是否完全转移到了无关话题\n\n"
+        + "如果回答明显偏题，返回JSON格式：\n"
+        + "{\"isOffTopic\": true, \"guidance\": \"解释性引导文字\"}\n"
+        + "如果回答基本切题，返回：\n"
+        + "{\"isOffTopic\": false, \"guidance\": \"\"}\n"
+        + "引导文字应该礼貌地重新解释问题的重点，帮助受访者理解问题意图。"
+      )
+    },
+    {
+      role: "user",
+      content: (
+        `问题: ${currentQuestion}\n`
+        + `受访者回答: ${userResponse}\n\n`
+        + "请判断这个回答是否偏离了问题主题。如果偏题，请生成一段礼貌的引导文字，"
+        + "重新解释问题的核心要点，帮助受访者更好地理解问题意图。"
+      )
+    }
+  ];
+
+  const result = await callAI(messages);
+
+  // 如果AI调用失败，使用简单的关键词匹配判断
+  if (!result) {
+    // 简单的偏题检测：如果回答太短或包含明显的转移话题词汇
+    const responseLength = userResponse.trim().length;
+    const deflectionKeywords = ['不知道', '不清楚', '换个话题', '我想说', '顺便说一下', '对了'];
+    const hasDeflection = deflectionKeywords.some(keyword => userResponse.includes(keyword));
+
+    if (responseLength < 10 || hasDeflection) {
+      return {
+        isOffTopic: true,
+        guidance: `让我重新解释一下这个问题的重点：${currentQuestion}。请您围绕这个问题的核心内容进行回答，分享您的真实想法和经验。`
+      };
+    }
+
+    return { isOffTopic: false, guidance: '' };
+  }
+
+  try {
+    // 清理并解析JSON结果
+    let cleanedResult = result.trim();
+    const codeBlockMatch = cleanedResult.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      cleanedResult = codeBlockMatch[1].trim();
+    }
+
+    const parsed = JSON.parse(cleanedResult);
+
+    return {
+      isOffTopic: Boolean(parsed.isOffTopic),
+      guidance: parsed.guidance || ''
+    };
+  } catch (parseError) {
+    console.error('Failed to parse off-topic check result:', parseError);
+
+    // 如果解析失败，基于结果文本进行简单判断
+    const isOffTopicKeywords = ['偏题', '偏离', '无关', '转移', 'off-topic', 'off topic'];
+    const isOffTopic = isOffTopicKeywords.some(keyword => result.toLowerCase().includes(keyword));
+
+    if (isOffTopic) {
+      return {
+        isOffTopic: true,
+        guidance: `让我重新解释一下这个问题：${currentQuestion}。请您结合这个问题的具体内容，分享您的观点和经验。`
+      };
+    }
+
+    return { isOffTopic: false, guidance: '' };
   }
 };

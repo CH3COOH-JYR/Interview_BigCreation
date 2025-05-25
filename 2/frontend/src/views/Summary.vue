@@ -38,14 +38,19 @@
           <div class="ratings">
             <el-table :data="ratingsData" style="width: 100%">
               <el-table-column prop="index" label="序号" width="80" />
-              <el-table-column prop="score" label="评分" width="120">
+              <el-table-column prop="score" label="评分" width="220">
                 <template #default="scope">
-                  <el-rate
-                    v-model="scope.row.score"
-                    disabled
-                    show-score
-                    text-color="#ff9900"
-                  />
+                  <div class="score-display">
+                    <el-rate
+                      :model-value="scope.row.score / 2"
+                      disabled
+                      allow-half
+                      show-score
+                      text-color="#ff9900"
+                      :texts="['很差', '较差', '一般', '较好', '很好']"
+                    />
+                    <span class="score-value">{{ scope.row.score }}/10</span>
+                  </div>
                 </template>
               </el-table-column>
               <el-table-column prop="explanation" label="说明" />
@@ -306,5 +311,16 @@ export default {
 .copy-action {
   margin-top: 15px;
   text-align: right;
+}
+
+.score-display {
+  display: flex;
+  align-items: center;
+}
+
+.score-value {
+  margin-left: 10px;
+  font-size: 14px;
+  color: #606266;
 }
 </style>

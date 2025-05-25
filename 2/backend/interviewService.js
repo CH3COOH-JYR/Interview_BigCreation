@@ -83,8 +83,35 @@ exports.submitResponse = async (interviewId, response) => {
     timestamp: new Date()
   });
 
-  // 分析回答深度
+  // 获取当前问题
   const currentQuestion = getCurrentQuestion(interview);
+
+  // 首先检查回答是否偏题
+  const offTopicCheck = await modelService.checkOffTopicAndGuide(currentQuestion, response);
+
+  if (offTopicCheck.isOffTopic && offTopicCheck.guidance) {
+    console.log('检测到回答偏题，提供引导');
+
+    // 添加引导解释到对话历史
+    interview.dialogHistory.push({
+      role: 'interviewer',
+      content: offTopicCheck.guidance,
+      timestamp: new Date()
+    });
+
+    // 保存访谈
+    await interview.save();
+
+    // 返回引导信息，不进行深度分析
+    return {
+      isOffTopic: true,
+      nextQuestion: offTopicCheck.guidance,
+      guidance: true,
+      shouldMoveToNext: false
+    };
+  }
+
+  // 如果回答切题，继续原有的深度分析逻辑
   const depth = await modelService.evaluateResponse(currentQuestion, response);
 
   let nextQuestion;
@@ -107,8 +134,10 @@ exports.submitResponse = async (interviewId, response) => {
 
   // 返回结果
   return {
+    isOffTopic: false,
     depth,
     nextQuestion: nextQuestion || null,
+    guidance: false,
     shouldMoveToNext: !nextQuestion
   };
 };
