@@ -3,6 +3,9 @@ const express = require('express');
 const router = express.Router();
 const summaryController = require('./summaryController');
 
+// 创建访谈总结
+router.post('/', summaryController.createSummary);
+
 // 获取访谈总结
 router.get('/:interviewId', summaryController.getSummary);
 

@@ -43,7 +43,7 @@
                   <el-button size="small" @click="startInterview(topic._id)">
                     开始访谈
                   </el-button>
-                  <el-button size="small" @click="viewTopicSummaries()" type="info">
+                  <el-button size="small" @click="viewTopicSummaries(topic._id)" type="info">
                     查看总结
                   </el-button>
                   <el-dropdown trigger="click">
@@ -118,6 +118,41 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 访谈选择对话框 -->
+    <el-dialog
+      v-model="showInterviewSelectionDialog"
+      title="选择要查看的访谈总结"
+      width="50%"
+    >
+      <div class="interview-selection">
+        <p>该主题下有多个已完成的访谈，请选择要查看总结的访谈：</p>
+        <el-radio-group v-model="selectedInterviewId" class="interview-list">
+          <el-radio 
+            v-for="interview in selectedTopicInterviews" 
+            :key="interview._id" 
+            :value="interview._id"
+            class="interview-item"
+          >
+            <div class="interview-info">
+              <div class="interview-date">
+                访谈时间：{{ new Date(interview.createdAt).toLocaleString() }}
+              </div>
+              <div class="interview-details">
+                对话轮数：{{ interview.dialogHistory?.length || 0 }} 轮
+                | 状态：{{ interview.status === 'completed' ? '已完成' : '进行中' }}
+              </div>
+            </div>
+          </el-radio>
+        </el-radio-group>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="cancelViewSummary">取消</el-button>
+          <el-button type="primary" @click="confirmViewSummary">查看总结</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -139,6 +174,12 @@ export default {
     const router = useRouter();
     const deleteDialogVisible = ref(false);
     const topicToDelete = ref(null);
+    
+    // 访谈选择对话框相关状态
+    const showInterviewSelectionDialog = ref(false);
+    const selectedTopicInterviews = ref([]);
+    const currentTopicForSummary = ref(null);
+    const selectedInterviewId = ref('');
     
     // 访谈准备相关状态
     const preparingDialogVisible = ref(false);
@@ -221,24 +262,49 @@ export default {
     };
     
     // 查看主题的所有总结
-    const viewTopicSummaries = async () => {
+    const viewTopicSummaries = async (topicId) => {
       try {
-        ElMessage.info('提示：总结功能说明', {
-          message: `
-            <div style="line-height: 1.6;">
-              <strong>查看总结的方法：</strong><br/>
-              1. 点击"开始访谈"进行新访谈<br/>
-              2. 完成访谈后，在访谈页面点击"查看总结"<br/>
-              3. 总结包含完整的对话记录和AI评分<br/>
-              4. 支持导出JSON和文本格式
-            </div>
-          `,
-          type: 'info',
-          duration: 8000,
-          dangerouslyUseHTMLString: true
+        // 首先获取该主题的所有访谈
+        const response = await fetch(`http://localhost:5000/api/interviews/topic/${topicId}`);
+        const data = await response.json();
+        
+        if (!data.success || !data.data || data.data.length === 0) {
+          ElMessage.info('该主题下暂无已完成的访谈');
+          return;
+        }
+        
+        // 过滤出已完成的访谈
+        const completedInterviews = data.data.filter(interview => interview.status === 'completed');
+        
+        if (completedInterviews.length === 0) {
+          ElMessage.info('该主题下暂无已完成的访谈');
+          return;
+        }
+        
+        // 如果只有一个已完成的访谈，直接跳转到总结页面
+        if (completedInterviews.length === 1) {
+          router.push({
+            name: 'summary',
+            params: { interviewId: completedInterviews[0]._id }
+          });
+          return;
+        }
+        
+        // 如果有多个已完成的访谈，显示选择对话框
+        // 使用Element Plus的消息框让用户选择
+        ElMessage.info({
+          message: `该主题下有 ${completedInterviews.length} 个已完成的访谈，请选择要查看的总结`,
+          duration: 3000
         });
+        
+        // 显示访谈列表供用户选择
+        showInterviewSelectionDialog.value = true;
+        selectedTopicInterviews.value = completedInterviews;
+        currentTopicForSummary.value = topicId;
+        
       } catch (error) {
-        ElMessage.error('查看总结失败');
+        console.error('获取主题访谈失败:', error);
+        ElMessage.error('获取访谈列表失败');
       }
     };
 
@@ -289,12 +355,38 @@ export default {
         : text;
     };
     
+    // 确认选择访谈并查看总结
+    const confirmViewSummary = () => {
+      if (!selectedInterviewId.value) {
+        ElMessage.warning('请选择一个访谈');
+        return;
+      }
+      
+      showInterviewSelectionDialog.value = false;
+      router.push({
+        name: 'summary',
+        params: { interviewId: selectedInterviewId.value }
+      });
+    };
+    
+    // 取消选择访谈
+    const cancelViewSummary = () => {
+      showInterviewSelectionDialog.value = false;
+      selectedInterviewId.value = '';
+      selectedTopicInterviews.value = [];
+      currentTopicForSummary.value = null;
+    };
+    
     return {
       topics,
       loading,
       error,
       deleteDialogVisible,
       topicToDelete,
+      showInterviewSelectionDialog,
+      selectedTopicInterviews,
+      currentTopicForSummary,
+      selectedInterviewId,
       preparingDialogVisible,
       preparingProgress,
       preparingText,
@@ -305,7 +397,9 @@ export default {
       confirmDelete,
       deleteTopic,
       formatDate,
-      truncateText
+      truncateText,
+      confirmViewSummary,
+      cancelViewSummary
     };
   }
 };
@@ -397,8 +491,58 @@ export default {
 }
 
 .preparing-text {
-  margin: 0 0 20px 0;
-  color: #606266;
+  color: #409eff;
   font-size: 14px;
+  margin-bottom: 20px;
+}
+
+/* 访谈选择对话框样式 */
+.interview-selection {
+  padding: 20px 0;
+}
+
+.interview-selection p {
+  margin-bottom: 20px;
+  color: #606266;
+  line-height: 1.6;
+}
+
+.interview-list {
+  width: 100%;
+}
+
+.interview-item {
+  width: 100%;
+  margin-bottom: 15px;
+  padding: 15px;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  transition: all 0.3s;
+}
+
+.interview-item:hover {
+  border-color: #409eff;
+  background-color: #f0f9ff;
+}
+
+.interview-item.is-checked {
+  border-color: #409eff;
+  background-color: #f0f9ff;
+}
+
+.interview-info {
+  width: 100%;
+  margin-left: 25px;
+}
+
+.interview-date {
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 5px;
+}
+
+.interview-details {
+  font-size: 14px;
+  color: #909399;
 }
 </style>

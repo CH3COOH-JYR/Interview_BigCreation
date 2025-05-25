@@ -400,6 +400,8 @@ exports.analyzeInterviewOutline = async (interviewOutline, keyQuestions) => {
 
 // 生成最终总结
 exports.generateSummary = async (interviewId) => {
+  console.log('开始生成总结，访谈ID:', interviewId);
+
   try {
     // 检查是否已经有总结
     const Summary = require('./Summary');
@@ -417,6 +419,8 @@ exports.generateSummary = async (interviewId) => {
       throw new Error('Interview not found');
     }
 
+    console.log('访谈记录获取成功，主题:', interview.topicId.title);
+
     // 构建对话历史文本（包含完整聊天记录）
     let conversationText = "";
     for (let turn of interview.dialogHistory) {
@@ -430,17 +434,22 @@ exports.generateSummary = async (interviewId) => {
     if (interview.ratingMetrics && interview.ratingMetrics.length > 0) {
       ratingMetrics = interview.ratingMetrics;
     } else {
-      ratingMetrics = await exports.analyzeInterviewOutline(
-        interview.topicId.outline,
-        interview.topicId.keyQuestions
-      );
+      ratingMetrics = [
+        '回答完整性',
+        '思考深度',
+        '逻辑清晰度',
+        '个人见解',
+        '表达能力'
+      ];
       // 保存评分指标到数据库
       interview.ratingMetrics = ratingMetrics;
       await interview.save();
     }
 
-    const ratingMetricsStr = ratingMetrics.map(m => `- ${m}`).join('\n');
+    console.log('评分指标:', ratingMetrics);
 
+    // 准备AI调用
+    const ratingMetricsStr = ratingMetrics.map(m => `- ${m}`).join('\n');
     const messages = [
       {
         role: "system",
@@ -453,15 +462,7 @@ exports.generateSummary = async (interviewId) => {
           + "  \"points\": [...],           // numeric scores for each metric (1-10)\n"
           + "  \"explanations\": [...]      // explanation for each score\n"
           + "}\n\n"
-          + "Only output valid JSON with these three keys.\n\n"
-          + "IMPORTANT: To avoid hallucinations, strictly adhere to these guidelines:\n"
-          + "1. Only include conclusions that are directly supported by the interviewee's statements\n"
-          + "2. Do not infer opinions, beliefs, or information that wasn't explicitly mentioned\n"
-          + "3. If the interviewee's response was minimal or off-topic for a metric, reflect this in your scoring and explanations\n"
-          + "4. Maintain factual accuracy - your summary must be grounded in the actual transcript\n"
-          + "5. Use direct quotes or paraphrases when possible to support your conclusions\n"
-          + "6. If certain metrics cannot be evaluated due to lack of relevant response, score them lower rather than fabricating an assessment\n"
-          + "7. Include a summary of the dialogue flow and key interactions in takeaways"
+          + "Only output valid JSON with these three keys."
         )
       },
       {
@@ -472,7 +473,6 @@ exports.generateSummary = async (interviewId) => {
           + `访谈完整记录（包含时间戳）:\n${conversationText}\n\n`
           + `评分指标列表:\n${ratingMetricsStr}\n\n`
           + "请根据以上信息，对受访者进行打分并生成总结。"
-          + "takeaways字段应该包含：1）主要观点总结 2）访谈过程概述 3）关键对话摘要"
           + "将上述总结转换为json字典，第一个键是takeaways，"
           + "值是一个字符串，包含你从访谈中得到的结论和对话过程概述；"
           + "第二个键是points，值是一个列表，每个元素是对应的评分指标的分值（1-10分）；"
@@ -482,79 +482,134 @@ exports.generateSummary = async (interviewId) => {
       }
     ];
 
+    console.log('开始调用AI生成总结...');
     const result = await callAI(messages, { ...DEFAULT_SAMPLING_PARAMS, max_tokens: 1024 });
 
-    // 如果AI调用失败，使用默认总结
-    if (!result) {
-      const defaultSummary = {
-        takeaways: `访谈主题：${interview.topicId.title}\n访谈已完成，感谢受访者的参与。\n\n对话记录：\n${conversationText}`,
-        points: ratingMetrics.map(() => 5), // 默认中等分数
-        explanations: ratingMetrics.map(() => "基于访谈内容进行评估。")
-      };
-
-      // 保存到数据库
-      const summaryDoc = new Summary({
-        interviewId,
-        ...defaultSummary
-      });
-      await summaryDoc.save();
-      console.log('使用默认总结并保存到数据库:', summaryDoc._id);
-      return summaryDoc;
-    }
-
-    // 清理JSON字符串
-    let cleanedResult = result;
-    // 移除Markdown代码块标记
-    const codeBlockMatch = cleanedResult.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (codeBlockMatch) {
-      cleanedResult = codeBlockMatch[1].trim();
-    }
-
-    // 验证JSON格式
     let parsedResult;
-    try {
-      parsedResult = JSON.parse(cleanedResult);
 
-      // 确保结果包含必要的字段
-      if (!parsedResult.takeaways || !parsedResult.points || !parsedResult.explanations) {
-        throw new Error('Missing required fields in summary');
+    // 如果AI调用成功，尝试解析结果
+    if (result) {
+      console.log('AI调用成功，解析结果...');
+
+      // 清理JSON字符串
+      let cleanedResult = result;
+      const codeBlockMatch = cleanedResult.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (codeBlockMatch) {
+        cleanedResult = codeBlockMatch[1].trim();
       }
 
-      // 确保takeaways包含对话记录
-      if (!parsedResult.takeaways.includes('对话记录') && !parsedResult.takeaways.includes('访谈过程')) {
-        parsedResult.takeaways += `\n\n详细对话记录：\n${conversationText}`;
+      try {
+        parsedResult = JSON.parse(cleanedResult);
+
+        // 验证必要字段
+        if (!parsedResult.takeaways || !Array.isArray(parsedResult.points) || !Array.isArray(parsedResult.explanations)) {
+          throw new Error('Missing required fields in summary');
+        }
+
+        // 确保points数组长度匹配
+        if (parsedResult.points.length !== ratingMetrics.length) {
+          parsedResult.points = ratingMetrics.map(() => 5);
+        }
+
+        // 确保explanations数组长度匹配
+        if (parsedResult.explanations.length !== ratingMetrics.length) {
+          parsedResult.explanations = ratingMetrics.map(() => "基于访谈内容进行评估。");
+        }
+
+        // 确保takeaways包含对话记录
+        if (!parsedResult.takeaways.includes('对话记录') && !parsedResult.takeaways.includes('访谈过程')) {
+          parsedResult.takeaways += `\n\n详细对话记录：\n${conversationText}`;
+        }
+
+        console.log('AI总结解析成功');
+
+      } catch (parseError) {
+        console.error('Failed to parse AI summary JSON:', parseError);
+        console.error('Raw result:', result);
+        parsedResult = null;
       }
+    } else {
+      console.log('AI调用失败，使用默认总结');
+    }
 
-    } catch (parseError) {
-      console.error('Failed to parse AI summary JSON:', parseError);
-      console.error('Raw result:', result);
-
-      // 使用默认的总结，但包含对话记录
+    // 如果AI调用失败或解析失败，使用默认总结
+    if (!parsedResult) {
       parsedResult = {
         takeaways: `访谈主题：${interview.topicId.title}\n访谈已完成，感谢受访者的参与。\n\n详细对话记录：\n${conversationText}`,
         points: ratingMetrics.map(() => 5), // 默认中等分数
         explanations: ratingMetrics.map(() => "基于访谈内容进行评估。")
       };
+      console.log('使用默认总结');
     }
 
     // 保存总结到数据库
+    console.log('保存总结到数据库...');
+
+    // 获取该主题下的总结数量，用于确定编号
+    const existingSummariesCount = await Summary.countDocuments({
+      topicId: interview.topicId._id
+    });
+    const summaryNumber = existingSummariesCount + 1;
+
     const summaryDoc = new Summary({
       interviewId,
+      topicId: interview.topicId._id,
+      topicTitle: interview.topicId.title,
+      summaryNumber,
       takeaways: parsedResult.takeaways,
       points: parsedResult.points,
       explanations: parsedResult.explanations
     });
 
     await summaryDoc.save();
-    console.log('总结已保存到数据库:', summaryDoc._id);
+    console.log(`总结已保存到数据库，ID: ${summaryDoc._id}, 编号: ${summaryNumber}`);
 
     // 更新interview记录，添加summary引用
     interview.summary = summaryDoc._id;
     await interview.save();
+    console.log('访谈记录已更新，添加总结引用');
 
     return summaryDoc;
   } catch (error) {
     console.error('Error generating summary:', error);
+
+    // 即使出错，也尝试创建一个基本的总结
+    try {
+      const Summary = require('./Summary');
+      const Interview = require('./Interview');
+      const interview = await Interview.findById(interviewId).populate('topicId');
+
+      if (interview) {
+        console.log('创建紧急备用总结...');
+
+        // 获取该主题下的总结数量，用于确定编号
+        const existingSummariesCount = await Summary.countDocuments({
+          topicId: interview.topicId._id
+        });
+        const summaryNumber = existingSummariesCount + 1;
+
+        const emergencySummary = new Summary({
+          interviewId,
+          topicId: interview.topicId._id,
+          topicTitle: interview.topicId?.title || '未知主题',
+          summaryNumber,
+          takeaways: `访谈主题：${interview.topicId?.title || '未知主题'}\n访谈已完成，但总结生成过程中遇到技术问题。`,
+          points: [5, 5, 5, 5, 5], // 默认分数
+          explanations: ['技术问题导致无法生成详细评分', '技术问题导致无法生成详细评分', '技术问题导致无法生成详细评分', '技术问题导致无法生成详细评分', '技术问题导致无法生成详细评分']
+        });
+
+        await emergencySummary.save();
+        console.log('紧急备用总结已保存，ID:', emergencySummary._id);
+
+        interview.summary = emergencySummary._id;
+        await interview.save();
+
+        return emergencySummary;
+      }
+    } catch (emergencyError) {
+      console.error('创建紧急备用总结也失败了:', emergencyError);
+    }
+
     throw error;
   }
 };

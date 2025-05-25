@@ -1,5 +1,34 @@
 const summaryService = require('./summaryService');
 
+// 创建访谈总结
+exports.createSummary = async (req, res) => {
+  try {
+    const { interviewId, topicId, topicTitle, summaryNumber, takeaways, points, explanations } = req.body;
+
+    if (!interviewId || !topicId || !topicTitle || !summaryNumber || !takeaways || !points || !explanations) {
+      return res.status(400).json({
+        success: false,
+        message: '缺少必要的总结数据'
+      });
+    }
+
+    const summary = await summaryService.createSummary({
+      interviewId,
+      topicId,
+      topicTitle,
+      summaryNumber,
+      takeaways,
+      points,
+      explanations
+    });
+
+    res.status(201).json({ success: true, data: summary });
+  } catch (error) {
+    console.error('Error creating summary:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // 获取访谈总结
 exports.getSummary = async (req, res) => {
   try {

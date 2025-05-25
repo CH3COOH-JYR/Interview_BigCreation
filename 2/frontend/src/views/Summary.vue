@@ -18,10 +18,17 @@
       <el-card class="summary-card">
         <template #header>
           <div class="card-header">
-            <h2>访谈总结</h2>
+            <h2>访谈总结 #{{ summary.summaryNumber }}</h2>
+            <div class="summary-meta">
+              <el-tag type="info">{{ summary.topicTitle }}</el-tag>
+            </div>
           </div>
         </template>
         <div class="summary-content">
+          <div class="summary-info">
+            <p><strong>生成时间：</strong>{{ new Date(summary.createdAt).toLocaleString() }}</p>
+          </div>
+          
           <h3>主要收获</h3>
           <div class="takeaways">
             <p>{{ summary.takeaways }}</p>
@@ -105,10 +112,10 @@ export default {
     const exportFormat = ref('');
     
     // 从store获取数据
-    const summary = computed(() => store.getters['summary/currentSummary']);
-    const exportedSummary = computed(() => store.getters['summary/exportedSummary']);
-    const loading = computed(() => store.getters['summary/isLoading']);
-    const error = computed(() => store.getters['summary/error']);
+    const summary = computed(() => store.getters['summaries/currentSummary']);
+    const exportedSummary = computed(() => store.getters['summaries/exportedSummary']);
+    const loading = computed(() => store.getters['summaries/isLoading']);
+    const error = computed(() => store.getters['summaries/error']);
     
     // 评分数据
     const ratingsData = computed(() => {
@@ -130,7 +137,7 @@ export default {
         return;
       }
       
-      await store.dispatch('summary/getSummary', interviewId);
+      await store.dispatch('summaries/getSummary', interviewId);
     });
     
     // 刷新总结
@@ -138,7 +145,7 @@ export default {
       const interviewId = route.params.interviewId;
       if (!interviewId) return;
       
-      await store.dispatch('summary/getSummary', interviewId);
+      await store.dispatch('summaries/getSummary', interviewId);
     };
     
     // 导出总结
@@ -147,7 +154,7 @@ export default {
       if (!interviewId) return;
       
       try {
-        await store.dispatch('summary/exportSummary', {
+        await store.dispatch('summaries/exportSummary', {
           interviewId,
           format
         });
@@ -220,12 +227,29 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-direction: column;
 }
 
 .card-header h2,
 .card-header h3 {
   margin: 0;
   color: #303133;
+}
+
+.summary-meta {
+  margin-top: 10px;
+}
+
+.summary-info {
+  margin-bottom: 20px;
+  padding: 10px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+}
+
+.summary-info p {
+  margin: 0;
+  color: #606266;
 }
 
 .summary-content {

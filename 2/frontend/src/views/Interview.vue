@@ -1,6 +1,18 @@
 <template>
   <div class="interview-container">
-    <el-card v-if="loading" class="loading-card">
+    <!-- AI思考中的全局提示 -->
+    <el-card v-if="isAIThinking" class="ai-thinking-card">
+      <div class="ai-thinking-global">
+        <div class="thinking-indicator">
+          <el-icon class="thinking-icon">
+            <loading />
+          </el-icon>
+          <span class="thinking-text">AI访谈者思考中...</span>
+        </div>
+      </div>
+    </el-card>
+
+    <el-card v-if="loading && !isAIThinking" class="loading-card">
       <div class="loading-content">
         <el-skeleton :rows="5" animated />
       </div>
@@ -139,6 +151,33 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 总结生成进度对话框 -->
+    <el-dialog
+      v-model="summaryGeneratingVisible"
+      title="访谈总结生成中"
+      width="40%"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      :show-close="false"
+      center
+    >
+      <div class="summary-generating-content">
+        <div class="summary-icon">
+          <el-icon :size="48" color="#409EFF">
+            <loading />
+          </el-icon>
+        </div>
+        <h3>正在生成访谈总结</h3>
+        <p class="summary-text">{{ summaryText }}</p>
+        <el-progress 
+          :percentage="summaryProgress" 
+          :format="summaryFormat"
+          :status="summaryProgress === 100 ? 'success' : ''"
+          :stroke-width="8"
+        />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -163,6 +202,9 @@ export default {
     const isSubmitting = ref(false);
     const isLoadingNext = ref(false);
     const endDialogVisible = ref(false);
+    const summaryGeneratingVisible = ref(false);
+    const summaryProgress = ref(0);
+    const summaryText = ref('正在生成访谈总结...');
     const isAIThinking = ref(false);
     
     // 从store获取数据
@@ -198,6 +240,10 @@ export default {
       
       const currentIndex = currentInterview.value.currentQuestionIndex || 0;
       return `${currentIndex}/${totalQuestions}`;
+    };
+    
+    const summaryFormat = (percentage) => {
+      return `${percentage}%`;
     };
     
     // 获取访谈状态
@@ -274,20 +320,55 @@ export default {
     
     // 结束访谈
     const endInterview = async () => {
-      isAIThinking.value = true; // 显示AI思考提示（生成总结需要时间）
+      endDialogVisible.value = false;
+      
+      // 显示总结生成进度
+      summaryGeneratingVisible.value = true;
+      summaryProgress.value = 0;
+      summaryText.value = '正在结束访谈...';
+      
+      // 模拟进度更新
+      const progressInterval = setInterval(() => {
+        if (summaryProgress.value < 90) {
+          summaryProgress.value += 15;
+          
+          if (summaryProgress.value === 15) {
+            summaryText.value = '正在保存访谈记录...';
+          } else if (summaryProgress.value === 30) {
+            summaryText.value = '正在分析对话内容...';
+          } else if (summaryProgress.value === 45) {
+            summaryText.value = 'AI正在生成总结...';
+          } else if (summaryProgress.value === 60) {
+            summaryText.value = '正在计算评分...';
+          } else if (summaryProgress.value === 75) {
+            summaryText.value = '正在整理总结报告...';
+          } else if (summaryProgress.value === 90) {
+            summaryText.value = '即将完成...';
+          }
+        }
+      }, 800);
       
       try {
         const result = await store.dispatch('interview/endInterview');
+        
+        clearInterval(progressInterval);
+        
         if (result) {
-          endDialogVisible.value = false;
-          ElMessage.success('访谈已结束，正在生成总结...');
+          summaryProgress.value = 100;
+          summaryText.value = '总结生成完成！';
+          
+          setTimeout(() => {
+            summaryGeneratingVisible.value = false;
+            ElMessage.success('访谈已结束，总结已生成');
+          }, 1000);
         } else {
+          summaryGeneratingVisible.value = false;
           ElMessage.error('结束访谈失败');
         }
       } catch (error) {
+        clearInterval(progressInterval);
+        summaryGeneratingVisible.value = false;
         ElMessage.error('结束访谈失败');
-      } finally {
-        isAIThinking.value = false; // 隐藏AI思考提示
       }
     };
     
@@ -327,10 +408,14 @@ export default {
       isLoadingNext,
       isAIThinking,
       endDialogVisible,
+      summaryGeneratingVisible,
+      summaryProgress,
+      summaryText,
       topicTitle,
       topicOutline,
       progressPercentage,
       progressFormat,
+      summaryFormat,
       submitResponse,
       getNextQuestion,
       confirmEndInterview,
@@ -471,6 +556,60 @@ export default {
 }
 
 /* AI思考提示样式 */
+.ai-thinking-card {
+  margin-bottom: 20px;
+  border: 2px solid #409eff;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+}
+
+.ai-thinking-global {
+  text-align: center;
+  padding: 20px;
+}
+
+.ai-thinking-global .thinking-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 16px;
+}
+
+.ai-thinking-global .thinking-icon {
+  animation: spin 1s linear infinite;
+  color: #409eff;
+  font-size: 24px;
+}
+
+.ai-thinking-global .thinking-text {
+  color: #409eff;
+  font-weight: 600;
+  font-style: italic;
+}
+
+/* 总结生成对话框样式 */
+.summary-generating-content {
+  text-align: center;
+  padding: 20px;
+}
+
+.summary-icon {
+  margin-bottom: 20px;
+}
+
+.summary-generating-content h3 {
+  margin: 0 0 15px 0;
+  color: #303133;
+  font-size: 18px;
+}
+
+.summary-text {
+  color: #409eff;
+  font-size: 14px;
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+
 .ai-thinking .message-content {
   background-color: #f0f2f5 !important;
   border: 1px dashed #d1d5db;
