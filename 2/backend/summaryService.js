@@ -71,3 +71,26 @@ exports.getAllSummaries = async () => {
     populate: { path: 'topicId', select: 'title' }
   }).sort({ createdAt: -1 });
 };
+
+// 删除总结
+exports.deleteSummary = async (interviewId) => {
+  try {
+    // 删除总结记录
+    const deletedSummary = await Summary.findOneAndDelete({ interviewId });
+
+    if (!deletedSummary) {
+      return null;
+    }
+
+    // 可选：同时删除对应的访谈记录，或者只清除访谈记录中的summary引用
+    const interview = await Interview.findById(interviewId);
+    if (interview) {
+      interview.summary = null;
+      await interview.save();
+    }
+
+    return deletedSummary;
+  } catch (error) {
+    throw error;
+  }
+};

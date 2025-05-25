@@ -122,34 +122,90 @@
     <!-- 访谈选择对话框 -->
     <el-dialog
       v-model="showInterviewSelectionDialog"
-      title="选择要查看的访谈总结"
-      width="50%"
+      title="访谈记录管理"
+      width="60%"
     >
       <div class="interview-selection">
-        <p>该主题下有多个已完成的访谈，请选择要查看总结的访谈：</p>
-        <el-radio-group v-model="selectedInterviewId" class="interview-list">
-          <el-radio 
-            v-for="interview in selectedTopicInterviews" 
-            :key="interview._id" 
-            :value="interview._id"
-            class="interview-item"
-          >
-            <div class="interview-info">
-              <div class="interview-date">
-                访谈时间：{{ new Date(interview.createdAt).toLocaleString() }}
-              </div>
-              <div class="interview-details">
-                对话轮数：{{ interview.dialogHistory?.length || 0 }} 轮
-                | 状态：{{ interview.status === 'completed' ? '已完成' : '进行中' }}
-              </div>
-            </div>
-          </el-radio>
-        </el-radio-group>
+        <div class="selection-header">
+          <p>该主题下有 {{ selectedTopicInterviews.length }} 个已完成的访谈：</p>
+          <div class="batch-actions">
+            <el-checkbox 
+              v-model="selectAll" 
+              @change="handleSelectAll"
+              :indeterminate="isIndeterminate"
+            >
+              全选
+            </el-checkbox>
+            <el-button 
+              type="primary" 
+              size="small" 
+              @click="batchDownload"
+              :disabled="selectedInterviewIds.length === 0"
+            >
+              批量下载 ({{ selectedInterviewIds.length }})
+            </el-button>
+            <el-button 
+              type="danger" 
+              size="small" 
+              @click="batchDelete"
+              :disabled="selectedInterviewIds.length === 0"
+            >
+              批量删除 ({{ selectedInterviewIds.length }})
+            </el-button>
+          </div>
+        </div>
+        
+        <el-table :data="selectedTopicInterviews" style="width: 100%">
+          <el-table-column type="selection" width="55" @selection-change="handleSelectionChange" />
+          
+          <el-table-column prop="createdAt" label="访谈时间" width="180">
+            <template #default="scope">
+              {{ new Date(scope.row.createdAt).toLocaleString() }}
+            </template>
+          </el-table-column>
+          
+          <el-table-column prop="dialogHistory" label="对话轮数" width="100">
+            <template #default="scope">
+              {{ scope.row.dialogHistory?.length || 0 }} 轮
+            </template>
+          </el-table-column>
+          
+          <el-table-column prop="status" label="状态" width="80">
+            <template #default>
+              <el-tag type="success">已完成</el-tag>
+            </template>
+          </el-table-column>
+          
+          <el-table-column label="操作" width="200">
+            <template #default="scope">
+              <el-button 
+                type="primary" 
+                size="small" 
+                @click="viewSummary(scope.row._id)"
+              >
+                查看总结
+              </el-button>
+              <el-button 
+                type="info" 
+                size="small" 
+                @click="downloadSummary(scope.row._id)"
+              >
+                下载
+              </el-button>
+              <el-button 
+                type="danger" 
+                size="small" 
+                @click="deleteSummary(scope.row._id)"
+              >
+                删除
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
       </div>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="cancelViewSummary">取消</el-button>
-          <el-button type="primary" @click="confirmViewSummary">查看总结</el-button>
+          <el-button @click="cancelViewSummary">关闭</el-button>
         </span>
       </template>
     </el-dialog>
@@ -161,6 +217,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useStore } from 'vuex';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
 import { More, Loading } from '@element-plus/icons-vue';
 
 export default {
@@ -180,6 +237,11 @@ export default {
     const selectedTopicInterviews = ref([]);
     const currentTopicForSummary = ref(null);
     const selectedInterviewId = ref('');
+    
+    // 批量操作相关状态
+    const selectedInterviewIds = ref([]);
+    const selectAll = ref(false);
+    const isIndeterminate = ref(false);
     
     // 访谈准备相关状态
     const preparingDialogVisible = ref(false);
@@ -291,13 +353,6 @@ export default {
         }
         
         // 如果有多个已完成的访谈，显示选择对话框
-        // 使用Element Plus的消息框让用户选择
-        ElMessage.info({
-          message: `该主题下有 ${completedInterviews.length} 个已完成的访谈，请选择要查看的总结`,
-          duration: 3000
-        });
-        
-        // 显示访谈列表供用户选择
         showInterviewSelectionDialog.value = true;
         selectedTopicInterviews.value = completedInterviews;
         currentTopicForSummary.value = topicId;
@@ -355,26 +410,204 @@ export default {
         : text;
     };
     
-    // 确认选择访谈并查看总结
-    const confirmViewSummary = () => {
-      if (!selectedInterviewId.value) {
-        ElMessage.warning('请选择一个访谈');
-        return;
-      }
-      
-      showInterviewSelectionDialog.value = false;
-      router.push({
-        name: 'summary',
-        params: { interviewId: selectedInterviewId.value }
-      });
-    };
-    
     // 取消选择访谈
     const cancelViewSummary = () => {
       showInterviewSelectionDialog.value = false;
       selectedInterviewId.value = '';
       selectedTopicInterviews.value = [];
       currentTopicForSummary.value = null;
+      selectedInterviewIds.value = [];
+      selectAll.value = false;
+      isIndeterminate.value = false;
+    };
+    
+    // 处理表格选择变化
+    const handleSelectionChange = (selection) => {
+      selectedInterviewIds.value = selection.map(item => item._id);
+      const total = selectedTopicInterviews.value.length;
+      const selected = selectedInterviewIds.value.length;
+      
+      selectAll.value = selected === total;
+      isIndeterminate.value = selected > 0 && selected < total;
+    };
+    
+    // 处理全选
+    const handleSelectAll = (val) => {
+      if (val) {
+        selectedInterviewIds.value = selectedTopicInterviews.value.map(item => item._id);
+      } else {
+        selectedInterviewIds.value = [];
+      }
+      isIndeterminate.value = false;
+    };
+    
+    // 查看单个总结
+    const viewSummary = (interviewId) => {
+      showInterviewSelectionDialog.value = false;
+      router.push({
+        name: 'summary',
+        params: { interviewId }
+      });
+    };
+    
+    // 下载单个总结
+    const downloadSummary = async (interviewId) => {
+      try {
+        const response = await fetch(`http://localhost:5000/api/summaries/${interviewId}/export`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ format: 'json' })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          // 创建下载链接
+          const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `interview_summary_${interviewId}.json`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          
+          ElMessage.success('总结下载成功');
+        } else {
+          ElMessage.error('下载失败：' + data.message);
+        }
+      } catch (error) {
+        console.error('下载总结失败:', error);
+        ElMessage.error('下载失败');
+      }
+    };
+    
+    // 删除单个总结
+    const deleteSummary = async (interviewId) => {
+      try {
+        await ElMessageBox.confirm(
+          '确定要删除这个访谈总结吗？此操作不可撤销。',
+          '确认删除',
+          {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning',
+          }
+        );
+        
+        const response = await fetch(`http://localhost:5000/api/summaries/${interviewId}`, {
+          method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          // 从列表中移除已删除的访谈
+          selectedTopicInterviews.value = selectedTopicInterviews.value.filter(
+            interview => interview._id !== interviewId
+          );
+          ElMessage.success('总结删除成功');
+          
+          // 如果列表为空，关闭对话框
+          if (selectedTopicInterviews.value.length === 0) {
+            cancelViewSummary();
+          }
+        } else {
+          ElMessage.error('删除失败：' + data.message);
+        }
+      } catch (error) {
+        if (error !== 'cancel') {
+          console.error('删除总结失败:', error);
+          ElMessage.error('删除失败');
+        }
+      }
+    };
+    
+    // 批量下载
+    const batchDownload = async () => {
+      if (selectedInterviewIds.value.length === 0) {
+        ElMessage.warning('请选择要下载的访谈');
+        return;
+      }
+      
+      try {
+        for (const interviewId of selectedInterviewIds.value) {
+          await downloadSummary(interviewId);
+          // 添加延迟以避免同时下载过多文件
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      } catch (error) {
+        console.error('批量下载失败:', error);
+      }
+    };
+    
+    // 批量删除
+    const batchDelete = async () => {
+      if (selectedInterviewIds.value.length === 0) {
+        ElMessage.warning('请选择要删除的访谈');
+        return;
+      }
+      
+      try {
+        await ElMessageBox.confirm(
+          `确定要删除选中的 ${selectedInterviewIds.value.length} 个访谈总结吗？此操作不可撤销。`,
+          '确认批量删除',
+          {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning',
+          }
+        );
+        
+        let successCount = 0;
+        let failCount = 0;
+        
+        for (const interviewId of selectedInterviewIds.value) {
+          try {
+            const response = await fetch(`http://localhost:5000/api/summaries/${interviewId}`, {
+              method: 'DELETE'
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+              successCount++;
+            } else {
+              failCount++;
+            }
+          } catch (error) {
+            failCount++;
+          }
+        }
+        
+        // 刷新列表
+        selectedTopicInterviews.value = selectedTopicInterviews.value.filter(
+          interview => !selectedInterviewIds.value.includes(interview._id)
+        );
+        
+        // 清空选择
+        selectedInterviewIds.value = [];
+        selectAll.value = false;
+        isIndeterminate.value = false;
+        
+        if (successCount > 0) {
+          ElMessage.success(`成功删除 ${successCount} 个总结${failCount > 0 ? `，${failCount} 个删除失败` : ''}`);
+        }
+        
+        if (failCount > 0 && successCount === 0) {
+          ElMessage.error('批量删除失败');
+        }
+        
+        // 如果列表为空，关闭对话框
+        if (selectedTopicInterviews.value.length === 0) {
+          cancelViewSummary();
+        }
+      } catch (error) {
+        if (error !== 'cancel') {
+          console.error('批量删除失败:', error);
+          ElMessage.error('批量删除失败');
+        }
+      }
     };
     
     return {
@@ -387,6 +620,9 @@ export default {
       selectedTopicInterviews,
       currentTopicForSummary,
       selectedInterviewId,
+      selectedInterviewIds,
+      selectAll,
+      isIndeterminate,
       preparingDialogVisible,
       preparingProgress,
       preparingText,
@@ -398,8 +634,14 @@ export default {
       deleteTopic,
       formatDate,
       truncateText,
-      confirmViewSummary,
-      cancelViewSummary
+      cancelViewSummary,
+      handleSelectionChange,
+      handleSelectAll,
+      viewSummary,
+      downloadSummary,
+      deleteSummary,
+      batchDownload,
+      batchDelete
     };
   }
 };
@@ -501,10 +743,25 @@ export default {
   padding: 20px 0;
 }
 
-.interview-selection p {
+.selection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+.selection-header p {
+  margin: 0;
   color: #606266;
   line-height: 1.6;
+}
+
+.batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .interview-list {

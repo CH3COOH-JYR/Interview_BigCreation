@@ -72,3 +72,19 @@ exports.getAllSummaries = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// 删除总结
+exports.deleteSummary = async (req, res) => {
+  try {
+    const result = await summaryService.deleteSummary(req.params.interviewId);
+
+    if (!result) {
+      return res.status(404).json({ success: false, message: '未找到访谈总结' });
+    }
+
+    res.json({ success: true, message: '总结删除成功' });
+  } catch (error) {
+    console.error('Error deleting summary:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
