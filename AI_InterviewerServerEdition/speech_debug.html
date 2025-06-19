@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>语音识别真实性测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .info { background-color: #e7f3ff; color: #0066cc; }
+        .success { background-color: #e7ffe7; color: #008800; }
+        .error { background-color: #ffe7e7; color: #cc0000; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        button {
+            padding: 12px 24px;
+            margin: 10px 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .primary { background-color: #007bff; color: white; }
+        .primary:hover { background-color: #0056b3; }
+        .danger { background-color: #dc3545; color: white; }
+        .danger:hover { background-color: #c82333; }
+        .success-btn { background-color: #28a745; color: white; }
+        .success-btn:hover { background-color: #218838; }
+        #result {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            min-height: 50px;
+            font-family: monospace;
+        }
+        #log {
+            background-color: #000;
+            color: #00ff00;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .test-item {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 语音识别真实性测试</h1>
+        <p>这个页面直接使用浏览器原生的 <strong>Web Speech API</strong>，证明语音识别功能是真实的，不是空壳。</p>
+        
+        <div class="test-item">
+            <h3>1. 浏览器兼容性检测</h3>
+            <div id="compatibility-status" class="status info">检测中...</div>
+            <button onclick="checkCompatibility()" class="success-btn">重新检测</button>
+        </div>
+
+        <div class="test-item">
+            <h3>2. 麦克风权限测试</h3>
+            <div id="microphone-status" class="status info">未测试</div>
+            <button onclick="testMicrophone()" class="primary">测试麦克风</button>
+        </div>
+
+        <div class="test-item">
+            <h3>3. 原生语音识别测试</h3>
+            <div id="speech-status" class="status info">准备就绪</div>
+            <button id="startBtn" onclick="startSpeechRecognition()" class="primary">开始语音识别</button>
+            <button id="stopBtn" onclick="stopSpeechRecognition()" class="danger" disabled>停止识别</button>
+            
+            <h4>识别结果：</h4>
+            <div id="result">等待语音输入...</div>
+            
+            <h4>语言设置：</h4>
+            <select id="languageSelect" onchange="changeLanguage()">
+                <option value="zh-CN">中文（简体）</option>
+                <option value="zh-TW">中文（繁体）</option>
+                <option value="zh">中文（通用）</option>
+                <option value="en-US">English (US)</option>
+                <option value="en">English</option>
+            </select>
+        </div>
+
+        <div class="test-item">
+            <h3>4. 详细调试日志</h3>
+            <div id="log"></div>
+            <button onclick="clearLog()" class="success-btn">清空日志</button>
+        </div>
+    </div>
+
+    <script>
+        let recognition = null;
+        let isListening = false;
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logDiv = document.getElementById('log');
+            const color = type === 'error' ? '#ff4444' : type === 'success' ? '#44ff44' : type === 'warning' ? '#ffff44' : '#00ff00';
+            logDiv.innerHTML += `<span style="color: ${color}">[${timestamp}] ${message}</span>\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[语音测试] ${message}`);
+        }
+
+        function updateStatus(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+
+        // 1. 检测浏览器兼容性
+        function checkCompatibility() {
+            log('开始检测浏览器兼容性...');
+            
+            const userAgent = navigator.userAgent;
+            log(`用户代理: ${userAgent}`);
+            
+            // 检查 Web Speech API 支持
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (SpeechRecognition) {
+                updateStatus('compatibility-status', '✅ 浏览器支持 Web Speech API', 'success');
+                log('✅ 检测到 Web Speech API 支持', 'success');
+                log(`API类型: ${window.SpeechRecognition ? 'SpeechRecognition' : 'webkitSpeechRecognition'}`);
+                
+                // 尝试创建识别器实例
+                try {
+                    const testRecognition = new SpeechRecognition();
+                    log('✅ 成功创建语音识别实例', 'success');
+                    
+                    // 测试基本属性
+                    log(`默认语言: ${testRecognition.lang || '未设置'}`);
+                    log(`持续识别: ${testRecognition.continuous}`);
+                    log(`中间结果: ${testRecognition.interimResults}`);
+                    
+                } catch (error) {
+                    log(`❌ 创建识别器实例失败: ${error.message}`, 'error');
+                    updateStatus('compatibility-status', '❌ 无法创建语音识别实例', 'error');
+                }
+                
+            } else {
+                updateStatus('compatibility-status', '❌ 浏览器不支持 Web Speech API', 'error');
+                log('❌ 浏览器不支持 Web Speech API', 'error');
+                log('建议使用 Chrome 或 Edge 最新版本', 'warning');
+            }
+        }
+
+        // 2. 测试麦克风权限
+        async function testMicrophone() {
+            log('开始测试麦克风权限...');
+            updateStatus('microphone-status', '🔄 正在测试麦克风...', 'info');
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                log('✅ 麦克风权限获取成功', 'success');
+                
+                // 获取音频轨道信息
+                const audioTracks = stream.getAudioTracks();
+                if (audioTracks.length > 0) {
+                    const track = audioTracks[0];
+                    log(`麦克风设备: ${track.label || '默认麦克风'}`);
+                    log(`设备状态: ${track.readyState}`);
+                    log(`设备启用: ${track.enabled}`);
+                }
+                
+                // 立即停止流
+                stream.getTracks().forEach(track => track.stop());
+                updateStatus('microphone-status', '✅ 麦克风权限正常', 'success');
+                
+            } catch (error) {
+                log(`❌ 麦克风测试失败: ${error.name} - ${error.message}`, 'error');
+                
+                let errorMsg = '❌ 麦克风权限测试失败';
+                if (error.name === 'NotAllowedError') {
+                    errorMsg += ' (权限被拒绝)';
+                } else if (error.name === 'NotFoundError') {
+                    errorMsg += ' (未找到设备)';
+                } else if (error.name === 'NotReadableError') {
+                    errorMsg += ' (设备被占用)';
+                }
+                
+                updateStatus('microphone-status', errorMsg, 'error');
+            }
+        }
+
+        // 3. 初始化语音识别
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (!SpeechRecognition) {
+                log('❌ 无法初始化语音识别：浏览器不支持', 'error');
+                return false;
+            }
+
+            recognition = new SpeechRecognition();
+            
+            // 配置参数
+            recognition.continuous = false;
+            recognition.interimResults = true;
+            recognition.lang = document.getElementById('languageSelect').value;
+            recognition.maxAlternatives = 1;
+            
+            log(`🔧 语音识别配置: 语言=${recognition.lang}, 持续=${recognition.continuous}, 中间结果=${recognition.interimResults}`);
+
+            // 事件监听
+            recognition.onstart = () => {
+                log('🎤 语音识别已启动', 'success');
+                updateStatus('speech-status', '🎤 正在监听语音...', 'info');
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                isListening = true;
+            };
+
+            recognition.onaudiostart = () => {
+                log('🔊 音频捕获开始');
+            };
+
+            recognition.onspeechstart = () => {
+                log('🗣️ 检测到语音输入', 'success');
+            };
+
+            recognition.onresult = (event) => {
+                log(`📝 收到识别结果 (${event.results.length} 个结果)`);
+                
+                let finalTranscript = '';
+                let interimTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    const confidence = event.results[i][0].confidence;
+                    
+                    log(`结果 ${i}: "${transcript}" (置信度: ${confidence ? confidence.toFixed(3) : 'N/A'}, 最终: ${event.results[i].isFinal})`);
+                    
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript;
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+
+                // 显示结果
+                const resultDiv = document.getElementById('result');
+                resultDiv.innerHTML = `
+                    <strong>最终结果:</strong> ${finalTranscript}<br>
+                    <strong>临时结果:</strong> <em>${interimTranscript}</em>
+                `;
+            };
+
+            recognition.onspeechend = () => {
+                log('🗣️ 语音输入结束');
+            };
+
+            recognition.onaudioend = () => {
+                log('🔊 音频捕获结束');
+            };
+
+            recognition.onend = () => {
+                log('🏁 语音识别结束', 'success');
+                updateStatus('speech-status', '✅ 识别完成', 'success');
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+                isListening = false;
+            };
+
+            recognition.onerror = (event) => {
+                log(`❌ 语音识别错误: ${event.error}`, 'error');
+                
+                let errorDetail = '';
+                switch (event.error) {
+                    case 'no-speech':
+                        errorDetail = '未检测到语音';
+                        break;
+                    case 'audio-capture':
+                        errorDetail = '无法捕获音频';
+                        break;
+                    case 'not-allowed':
+                        errorDetail = '权限被拒绝';
+                        break;
+                    case 'network':
+                        errorDetail = '网络错误';
+                        break;
+                    case 'language-not-supported':
+                        errorDetail = '语言不支持';
+                        break;
+                    case 'service-not-allowed':
+                        errorDetail = '服务不可用';
+                        break;
+                    default:
+                        errorDetail = event.error;
+                }
+                
+                updateStatus('speech-status', `❌ 识别失败: ${errorDetail}`, 'error');
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+                isListening = false;
+            };
+
+            return true;
+        }
+
+        // 开始语音识别
+        function startSpeechRecognition() {
+            if (!recognition && !initSpeechRecognition()) {
+                return;
+            }
+
+            if (isListening) {
+                log('⚠️ 语音识别已在进行中', 'warning');
+                return;
+            }
+
+            log('🚀 启动语音识别...');
+            document.getElementById('result').textContent = '正在监听...';
+            
+            try {
+                recognition.start();
+            } catch (error) {
+                log(`❌ 启动失败: ${error.message}`, 'error');
+                updateStatus('speech-status', `❌ 启动失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 停止语音识别
+        function stopSpeechRecognition() {
+            if (recognition && isListening) {
+                log('⏹️ 手动停止语音识别');
+                recognition.stop();
+            }
+        }
+
+        // 更改语言
+        function changeLanguage() {
+            const newLang = document.getElementById('languageSelect').value;
+            log(`🌐 切换语言到: ${newLang}`);
+            
+            if (recognition) {
+                recognition.lang = newLang;
+                log(`✅ 语言已更新为: ${recognition.lang}`);
+            }
+        }
+
+        // 清空日志
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // 页面加载时自动检测
+        window.onload = function() {
+            log('=== 语音识别真实性测试开始 ===', 'success');
+            checkCompatibility();
+        };
+    </script>
+</body>
+</html> 

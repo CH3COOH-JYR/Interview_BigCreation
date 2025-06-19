@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>语音识别安全上下文测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔒 语音识别安全上下文测试</h1>
+    
+    <div class="test-section">
+        <h2>1. 安全上下文检测</h2>
+        <div id="securityContext" class="status"></div>
+        <div id="protocol" class="status"></div>
+        <div id="origin" class="status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Web Speech API 可用性</h2>
+        <div id="apiAvailability" class="status"></div>
+        <div id="apiDetails" class="status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. 语音识别测试</h2>
+        <button id="testButton" onclick="testSpeechRecognition()">测试语音识别</button>
+        <div id="testResult" class="status" style="display:none;"></div>
+        <pre id="testLog" style="display:none;"></pre>
+    </div>
+
+    <div class="test-section">
+        <h2>4. 解决方案</h2>
+        <div id="solution" class="status info"></div>
+    </div>
+
+    <script>
+        // 检测安全上下文
+        function checkSecurityContext() {
+            const isSecure = window.isSecureContext;
+            const protocol = window.location.protocol;
+            const hostname = window.location.hostname;
+            const origin = window.location.origin;
+            
+            // 显示安全上下文状态
+            document.getElementById('securityContext').className = `status ${isSecure ? 'success' : 'error'}`;
+            document.getElementById('securityContext').textContent = 
+                `安全上下文: ${isSecure ? '✅ 是' : '❌ 否'}`;
+            
+            // 显示协议
+            document.getElementById('protocol').className = `status ${protocol === 'https:' ? 'success' : 'warning'}`;
+            document.getElementById('protocol').textContent = 
+                `当前协议: ${protocol} ${protocol === 'https:' ? '✅' : '⚠️'}`;
+            
+            // 显示来源
+            document.getElementById('origin').className = 'status info';
+            document.getElementById('origin').textContent = `当前来源: ${origin}`;
+            
+            // 特殊情况说明
+            if (!isSecure && hostname === 'localhost') {
+                document.getElementById('origin').innerHTML += 
+                    '<br>💡 注意: localhost 通常被视为安全上下文，但某些功能可能仍受限';
+            } else if (!isSecure) {
+                document.getElementById('origin').innerHTML += 
+                    '<br>⚠️ 警告: 非安全上下文可能导致语音识别功能受限或不可用！';
+            }
+            
+            return isSecure;
+        }
+
+        // 检测 Web Speech API
+        function checkWebSpeechAPI() {
+            const hasSpeechRecognition = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+            const hasGetUserMedia = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+            
+            document.getElementById('apiAvailability').className = `status ${hasSpeechRecognition ? 'success' : 'error'}`;
+            document.getElementById('apiAvailability').textContent = 
+                `Web Speech API: ${hasSpeechRecognition ? '✅ 可用' : '❌ 不可用'}`;
+            
+            let details = [];
+            if ('SpeechRecognition' in window) details.push('标准API ✅');
+            if ('webkitSpeechRecognition' in window) details.push('WebKit API ✅');
+            if (hasGetUserMedia) details.push('getUserMedia ✅');
+            
+            document.getElementById('apiDetails').className = 'status info';
+            document.getElementById('apiDetails').innerHTML = `支持的功能: ${details.join(', ')}`;
+            
+            return hasSpeechRecognition;
+        }
+
+        // 测试语音识别
+        async function testSpeechRecognition() {
+            const button = document.getElementById('testButton');
+            const result = document.getElementById('testResult');
+            const log = document.getElementById('testLog');
+            
+            button.disabled = true;
+            result.style.display = 'block';
+            log.style.display = 'block';
+            
+            let logs = [];
+            const addLog = (msg) => {
+                logs.push(`[${new Date().toLocaleTimeString()}] ${msg}`);
+                log.textContent = logs.join('\n');
+            };
+            
+            try {
+                addLog('开始测试语音识别...');
+                
+                // 检查安全上下文
+                if (!window.isSecureContext) {
+                    addLog('⚠️ 警告: 不在安全上下文中，语音识别可能失败');
+                }
+                
+                // 创建语音识别实例
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) {
+                    throw new Error('浏览器不支持 Web Speech API');
+                }
+                
+                const recognition = new SpeechRecognition();
+                recognition.lang = 'zh-CN';
+                recognition.continuous = false;
+                recognition.interimResults = true;
+                
+                addLog('✅ 创建语音识别实例成功');
+                addLog(`配置: 语言=${recognition.lang}, 连续=${recognition.continuous}`);
+                
+                // 设置事件处理
+                recognition.onstart = () => {
+                    addLog('🎤 语音识别已启动');
+                    result.className = 'status info';
+                    result.textContent = '正在录音，请说话...';
+                };
+                
+                recognition.onaudiostart = () => {
+                    addLog('🔊 音频捕获开始');
+                };
+                
+                recognition.onspeechstart = () => {
+                    addLog('🗣️ 检测到语音');
+                };
+                
+                recognition.onresult = (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    addLog(`📝 识别结果: "${transcript}"`);
+                    result.className = 'status success';
+                    result.textContent = `识别成功: "${transcript}"`;
+                };
+                
+                recognition.onerror = (event) => {
+                    addLog(`❌ 错误: ${event.error}`);
+                    result.className = 'status error';
+                    
+                    let errorMsg = `识别失败: ${event.error}`;
+                    if (event.error === 'not-allowed') {
+                        errorMsg += ' - 麦克风权限被拒绝';
+                    } else if (event.error === 'network') {
+                        errorMsg += ' - 网络错误，可能需要HTTPS';
+                    } else if (event.error === 'no-speech') {
+                        errorMsg += ' - 未检测到语音';
+                    }
+                    
+                    result.textContent = errorMsg;
+                    
+                    // 特殊处理：非安全上下文
+                    if (!window.isSecureContext) {
+                        addLog('💡 提示: 在HTTP环境下，语音识别可能被浏览器限制');
+                    }
+                };
+                
+                recognition.onend = () => {
+                    addLog('🏁 语音识别结束');
+                    button.disabled = false;
+                };
+                
+                // 启动识别
+                addLog('正在启动语音识别...');
+                recognition.start();
+                
+            } catch (error) {
+                addLog(`❌ 异常: ${error.message}`);
+                result.className = 'status error';
+                result.textContent = `测试失败: ${error.message}`;
+                button.disabled = false;
+            }
+        }
+
+        // 显示解决方案
+        function showSolution() {
+            const isSecure = window.isSecureContext;
+            const solution = document.getElementById('solution');
+            
+            if (isSecure) {
+                solution.innerHTML = `
+                    <h3>✅ 您的环境是安全的</h3>
+                    <p>语音识别应该可以正常工作。如果仍有问题，请检查：</p>
+                    <ul>
+                        <li>麦克风权限是否已授予</li>
+                        <li>麦克风设备是否正常</li>
+                        <li>浏览器是否支持语音识别（推荐Chrome或Edge）</li>
+                    </ul>
+                `;
+            } else {
+                solution.innerHTML = `
+                    <h3>⚠️ 检测到非安全上下文问题</h3>
+                    <p>您当前使用的是 HTTP 协议，这会导致语音识别功能受限。解决方案：</p>
+                    <ol>
+                        <li><strong>使用 HTTPS</strong>: 配置SSL证书，通过 https:// 访问</li>
+                        <li><strong>使用 localhost</strong>: 访问 http://localhost:5000 而不是IP地址</li>
+                        <li><strong>使用 ngrok</strong>: 创建安全的隧道来测试</li>
+                        <li><strong>部署到支持HTTPS的服务器</strong>: 如Vercel、Netlify等</li>
+                    </ol>
+                    <p style="color: #dc3545;">
+                        <strong>重要</strong>: 大多数现代浏览器在非HTTPS环境下会阻止或限制语音识别API！
+                    </p>
+                `;
+            }
+        }
+
+        // 页面加载时执行检测
+        window.onload = function() {
+            checkSecurityContext();
+            checkWebSpeechAPI();
+            showSolution();
+        };
+    </script>
+</body>
+</html> 
